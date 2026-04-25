@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #FF6B35;
+  --color-brand-2: #F7931E;
+  --color-app-from: #FFF9F5;
+  --color-app-to: #FFF0E6;
+  --color-warn-border: #FFB8A0;
+  --color-warn-text: #FF3B30;
+  --color-foreground: #1F1B16;
+  --font-sans: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
+  --radius-card: 16px;
+  --radius-button: 24px;
+  --shadow-card: 0 2px 14px rgba(0,0,0,.06);
+}
+
+body {
+  background: linear-gradient(160deg, var(--color-app-from), var(--color-app-to));
+  min-height: 100dvh;
+}
+
+.bg-app {
+  background: linear-gradient(160deg, var(--color-app-from), var(--color-app-to));
+}

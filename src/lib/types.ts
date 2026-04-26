@@ -1,30 +1,145 @@
-export interface Product {
+// ============================================================
+// Database types — aligned to supabase/migrations/0001_initial.sql
+// snake_case matches Supabase JS client serialization (no mapper needed)
+// ============================================================
+
+// ------------------------------------------------------------
+// Categories
+// ------------------------------------------------------------
+
+export const CATEGORIES = [
+  { key: 'despensa', label: 'Despensa', emoji: '🍞' },
+  { key: 'higiene', label: 'Higiene', emoji: '🧴' },
+  { key: 'bebe', label: 'Bebé/Niñas', emoji: '👶' },
+  { key: 'limpieza', label: 'Limpieza', emoji: '🧹' },
+  { key: 'frescos', label: 'Frescos', emoji: '🥛' },
+  { key: 'farmacia', label: 'Farmacia', emoji: '💊' },
+] as const;
+
+export type Category = (typeof CATEGORIES)[number]['key'];
+
+const _categoryMap = new Map(CATEGORIES.map((c) => [c.key, c]));
+
+export function categoryLabel(key: Category): string {
+  return _categoryMap.get(key)!.label;
+}
+
+export function categoryEmoji(key: Category): string {
+  return _categoryMap.get(key)!.emoji;
+}
+
+// ------------------------------------------------------------
+// Role
+// ------------------------------------------------------------
+
+export type HouseholdRole = 'owner' | 'member';
+
+// ------------------------------------------------------------
+// Row types (SELECT — what Supabase returns)
+// timestamptz columns are serialized as ISO 8601 strings by supabase-js
+// nullable columns use `| null`, not `?:` (Supabase returns null, not undefined)
+// ------------------------------------------------------------
+
+export interface Household {
   id: string;
   name: string;
-  brand: string;
+  created_at: string;
+}
+
+export interface HouseholdMember {
+  household_id: string;
+  user_id: string;
+  role: HouseholdRole;
+  created_at: string;
+}
+
+export interface Product {
+  id: string;
+  household_id: string;
+  name: string;
+  brand: string | null;
   category: Category;
-  unit: string;
-  currentStock: number;
-  minStock: number;
+  unit: string | null;
+  current_stock: number;
+  min_stock: number;
   price: number;
-  barcode: string;
+  barcode: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ConsumptionLog {
   id: string;
-  productId: string;
+  product_id: string;
   qty: number;
   date: string;
-  type?: 'restock';
+  type: 'restock' | null;
+  created_at: string;
 }
 
-export const CATEGORIES = [
-  '🍞 Despensa',
-  '🧴 Higiene',
-  '👶 Bebé/Niñas',
-  '🧹 Limpieza',
-  '🥛 Frescos',
-  '💊 Farmacia',
-] as const;
+// ------------------------------------------------------------
+// Insert types (what you send on INSERT)
+// Fields with SQL defaults are optional: id, *_at, current_stock, min_stock, price
+// ------------------------------------------------------------
 
-export type Category = (typeof CATEGORIES)[number];
+export interface HouseholdInsert {
+  id?: string;
+  name: string;
+  created_at?: string;
+}
+
+export interface HouseholdMemberInsert {
+  household_id: string;
+  user_id: string;
+  role: HouseholdRole;
+  created_at?: string;
+}
+
+export interface ProductInsert {
+  id?: string;
+  household_id: string;
+  name: string;
+  brand?: string | null;
+  category: Category;
+  unit?: string | null;
+  current_stock?: number;
+  min_stock?: number;
+  price?: number;
+  barcode?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ConsumptionLogInsert {
+  id?: string;
+  product_id: string;
+  qty: number;
+  date?: string;
+  type?: 'restock' | null;
+  created_at?: string;
+}
+
+// ------------------------------------------------------------
+// Update types (what you send on UPDATE — all optional, no id)
+// ------------------------------------------------------------
+
+export type HouseholdUpdate = Partial<Omit<HouseholdInsert, 'id'>>;
+export type HouseholdMemberUpdate = Partial<Omit<HouseholdMemberInsert, 'household_id' | 'user_id'>>;
+export type ProductUpdate = Partial<Omit<ProductInsert, 'id'>>;
+export type ConsumptionLogUpdate = Partial<Omit<ConsumptionLogInsert, 'id'>>;
+
+// ------------------------------------------------------------
+// Database shape — compatible with createClient<Database>()
+// Matches the shape produced by `supabase gen types typescript`
+// ------------------------------------------------------------
+
+export type Database = {
+  public: {
+    Tables: {
+      households: { Row: Household; Insert: HouseholdInsert; Update: HouseholdUpdate };
+      household_members: { Row: HouseholdMember; Insert: HouseholdMemberInsert; Update: HouseholdMemberUpdate };
+      products: { Row: Product; Insert: ProductInsert; Update: ProductUpdate };
+      consumption_logs: { Row: ConsumptionLog; Insert: ConsumptionLogInsert; Update: ConsumptionLogUpdate };
+    };
+  };
+};

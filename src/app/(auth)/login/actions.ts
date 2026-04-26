@@ -38,5 +38,6 @@ export async function loginAction(
     return { error: 'Email o contraseña incorrectos.' };
   }
 
-  redirect('/');
+  // Onboarding page redirects to '/' if user already has a household.
+  redirect('/onboarding');
 }

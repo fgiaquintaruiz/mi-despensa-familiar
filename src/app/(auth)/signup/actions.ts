@@ -42,6 +42,6 @@ export async function signupAction(
     return { error: 'No se pudo crear la cuenta. Intentá de nuevo.' };
   }
 
-  // Email confirmation is OFF — session is established immediately on signUp
-  redirect('/');
+  // Email confirmation is disabled in Supabase config; signUp establishes a session immediately. Redirect to onboarding so the user can create their household.
+  redirect('/onboarding');
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { addProductAction, updateProductAction, deleteProductAction, logoutAction } from './actions';
+import { addProductAction, updateProductAction, deleteProductAction, logoutAction, importTicketItemsAction } from './actions';
 import { createClient } from '@/lib/supabase/server';
 
 vi.mock('@/lib/supabase/server');
@@ -213,6 +213,36 @@ describe('deleteProductAction', () => {
     const result = await deleteProductAction('p-1');
     expect(result).toEqual({});
     expect(mockDelete).toHaveBeenCalled();
+  });
+});
+
+describe('importTicketItemsAction', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns { imported: 0 } without calling Supabase when items array is empty', async () => {
+    const result = await importTicketItemsAction([]);
+    expect(result).toEqual({ imported: 0 });
+    expect(vi.mocked(createClient)).not.toHaveBeenCalled();
+  });
+
+  it('returns error when there is no authenticated user', async () => {
+    buildSupabaseMock(null, null);
+    const result = await importTicketItemsAction([
+      { name: 'LECHE', qty: 1, price: 1.0, category: 'frescos' },
+    ]);
+    expect(result.error).toBeDefined();
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it('returns { imported: N } on successful insert', async () => {
+    buildSupabaseMock({ id: 'user-1' }, { household_id: 'hh-1' });
+    const items = [
+      { name: 'LECHE', qty: 2, price: 1.1, category: 'frescos' as const },
+      { name: 'PAN', qty: 1, price: 0.9, category: 'despensa' as const },
+    ];
+    const result = await importTicketItemsAction(items);
+    expect(result).toEqual({ imported: 2 });
+    expect(mockInsert).toHaveBeenCalledOnce();
   });
 });
 

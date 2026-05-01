@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import type { Product } from '@/lib/types';
 import DashboardStats from './_components/DashboardStats';
@@ -37,7 +38,15 @@ export default async function Home() {
       <main className="mx-auto max-w-[480px] px-5 py-8">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-extrabold text-[var(--color-brand)]">Mi Despensa</h1>
-          <LogoutButton />
+          <div className="flex items-center gap-2">
+            <Link
+              href="/import-ticket"
+              className="rounded-lg border border-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-[var(--color-brand)]"
+            >
+              Importar ticket
+            </Link>
+            <LogoutButton />
+          </div>
         </div>
         <DashboardStats total={total} lowStock={lowStock} categories={categories} />
         <ProductList products={list} />

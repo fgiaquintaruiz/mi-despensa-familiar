@@ -126,6 +126,44 @@ export async function updateProductAction(
   return {};
 }
 
+export async function importTicketItemsAction(
+  items: Array<{ name: string; qty: number; price: number; category: Category }>,
+): Promise<{ error?: string; imported: number }> {
+  if (items.length === 0) return { imported: 0 };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: 'No autenticado', imported: 0 };
+
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  const { error } = await supabase.from('products').insert(
+    items.map((i) => ({
+      household_id: membership!.household_id,
+      name: i.name,
+      category: i.category,
+      current_stock: i.qty,
+      price: i.price,
+      brand: null,
+      unit: null,
+      min_stock: 0,
+    })),
+  );
+
+  if (error) return { error: error.message, imported: 0 };
+
+  revalidatePath('/');
+  return { imported: items.length };
+}
+
 export async function deleteProductAction(productId: string): Promise<{ error?: string }> {
   if (!productId) {
     return { error: 'ID del producto es obligatorio.' };

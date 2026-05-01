@@ -16,7 +16,7 @@ declare global {
 }
 
 export function useBarcodeScanner(onDetected: (barcode: string) => void): {
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
   isSupported: boolean;
   isScanning: boolean;
   startScan: () => Promise<void>;

@@ -1,5 +1,7 @@
+import Link from 'next/link';
 import { categoryLabel } from '@/lib/types';
 import type { Product } from '@/lib/types';
+import DeleteProductButton from './DeleteProductButton';
 
 interface Props {
   products: Product[];
@@ -34,6 +36,14 @@ export default function ProductList({ products }: Props) {
                 stock bajo
               </span>
             )}
+            <Link
+              href={`/products/${product.id}/edit`}
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-[var(--color-brand)] hover:bg-blue-50"
+              aria-label={`Editar ${product.name}`}
+            >
+              Editar
+            </Link>
+            <DeleteProductButton productId={product.id} productName={product.name} />
           </div>
         </li>
       ))}

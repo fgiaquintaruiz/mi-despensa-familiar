@@ -1,7 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ProductList from './ProductList';
 import type { Product } from '@/lib/types';
+
+vi.mock('./DeleteProductButton', () => ({
+  default: ({ productId, productName }: { productId: string; productName: string }) => (
+    <button data-testid={`delete-${productId}`} aria-label={`Eliminar ${productName}`}>
+      Eliminar
+    </button>
+  ),
+}));
+
+vi.mock('next/link', () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode; [key: string]: unknown }) => (
+    <a href={href} {...rest}>{children}</a>
+  ),
+}));
 
 function makeProduct(overrides: Partial<Product> = {}): Product {
   return {
@@ -49,5 +63,31 @@ describe('ProductList', () => {
     const product = makeProduct({ current_stock: 5, min_stock: 3 });
     render(<ProductList products={[product]} />);
     expect(screen.queryByText('stock bajo')).not.toBeInTheDocument();
+  });
+
+  it('renders an edit link to /products/{id}/edit for each product', () => {
+    const products = [
+      makeProduct({ id: 'p-1', name: 'Arroz' }),
+      makeProduct({ id: 'p-2', name: 'Shampoo' }),
+    ];
+    render(<ProductList products={products} />);
+    expect(screen.getByRole('link', { name: /editar arroz/i })).toHaveAttribute(
+      'href',
+      '/products/p-1/edit',
+    );
+    expect(screen.getByRole('link', { name: /editar shampoo/i })).toHaveAttribute(
+      'href',
+      '/products/p-2/edit',
+    );
+  });
+
+  it('renders a DeleteProductButton for each product', () => {
+    const products = [
+      makeProduct({ id: 'p-1', name: 'Arroz' }),
+      makeProduct({ id: 'p-2', name: 'Shampoo' }),
+    ];
+    render(<ProductList products={products} />);
+    expect(screen.getByTestId('delete-p-1')).toBeInTheDocument();
+    expect(screen.getByTestId('delete-p-2')).toBeInTheDocument();
   });
 });

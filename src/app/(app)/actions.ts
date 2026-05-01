@@ -248,7 +248,7 @@ export async function consumeProductAction(productId: string): Promise<{ error?:
   // 1. Fetch current product to check stock
   const { data: product, error: fetchError } = await supabase
     .from('products')
-    .select('id, current_stock')
+    .select('id, current_stock, min_stock, name, unit')
     .eq('id', productId)
     .eq('household_id', membership.household_id)
     .single();
@@ -277,6 +277,28 @@ export async function consumeProductAction(productId: string): Promise<{ error?:
     qty: 1,
     type: null,
   });
+
+  // 4. Send low-stock push notification if stock dropped below min_stock
+  const newStock = product.current_stock - 1;
+  if (product.min_stock > 0 && newStock < product.min_stock) {
+    const unitLabel = product.unit ?? 'unidades';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+    // Fire-and-forget — don't block the action on notification delivery
+    fetch(`${appUrl}/api/push/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.id,
+        payload: {
+          title: 'Stock bajo',
+          body: `${product.name} está por agotarse (${newStock} ${unitLabel} restantes)`,
+          url: '/products',
+        },
+      }),
+    }).catch(() => {
+      // Notification failure must never break the consume action
+    });
+  }
 
   revalidatePath('/');
   return {};

@@ -61,13 +61,13 @@ describe('AddProductSheet', () => {
 
   it('sheet is hidden by default', () => {
     render(<AddProductSheet />);
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /nombre/i })).not.toBeInTheDocument();
   });
 
   it('clicking the FAB opens the sheet and shows the form', () => {
     render(<AddProductSheet />);
     fireEvent.click(screen.getByRole('button', { name: /\+/i }));
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /nombre/i })).toBeInTheDocument();
   });
 
   it('sheet renders all 6 category chips with correct labels', () => {
@@ -134,14 +134,14 @@ describe('AddProductSheet', () => {
   it('Guardar button is disabled when category is not selected', () => {
     render(<AddProductSheet />);
     fireEvent.click(screen.getByRole('button', { name: /\+/i }));
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Leche' } });
+    fireEvent.change(screen.getByRole('textbox', { name: /nombre/i }), { target: { value: 'Leche' } });
     expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
   });
 
   it('Guardar button is enabled when name and category are set', () => {
     render(<AddProductSheet />);
     fireEvent.click(screen.getByRole('button', { name: /\+/i }));
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Leche' } });
+    fireEvent.change(screen.getByRole('textbox', { name: /nombre/i }), { target: { value: 'Leche' } });
     fireEvent.click(screen.getByText(categoryLabel('frescos')));
     expect(screen.getByRole('button', { name: 'Guardar' })).not.toBeDisabled();
   });
@@ -150,7 +150,7 @@ describe('AddProductSheet', () => {
     render(<AddProductSheet />);
     fireEvent.click(screen.getByRole('button', { name: /\+/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /nombre/i })).not.toBeInTheDocument();
   });
 
   it('Escanear código button is not shown when BarcodeDetector is not supported', () => {

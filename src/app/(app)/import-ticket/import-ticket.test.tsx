@@ -46,7 +46,7 @@ beforeEach(() => {
 describe('ImportTicketPage', () => {
   it('renders the file input/upload button on initial render', () => {
     render(<ImportTicketPage />);
-    expect(screen.getByText(/seleccionar ticket pdf/i)).toBeInTheDocument();
+    expect(screen.getByText(/subir pdf/i)).toBeInTheDocument();
   });
 
   it('shows item list after successful PDF upload', async () => {

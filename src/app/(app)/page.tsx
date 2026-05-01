@@ -5,6 +5,7 @@ import DashboardStats from './_components/DashboardStats';
 import ProductList from './_components/ProductList';
 import AddProductSheet from './_components/AddProductSheet';
 import LogoutButton from './_components/LogoutButton';
+import NotificationPermission from '@/components/NotificationPermission';
 
 export default async function Home() {
   const supabase = await createClient();
@@ -51,6 +52,7 @@ export default async function Home() {
             >
               Importar ticket
             </Link>
+            <NotificationPermission />
             <LogoutButton />
           </div>
         </div>

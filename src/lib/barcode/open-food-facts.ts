@@ -51,7 +51,11 @@ export async function lookupBarcode(barcode: string): Promise<FoodProduct | null
     }
 
     const { product } = data;
-    const name = product.product_name ?? '';
+    const rawName = product.product_name ?? '';
+    const name = rawName
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ');
     const brandsRaw = product.brands ?? null;
     const brand = brandsRaw ? brandsRaw.split(',')[0].trim() || null : null;
     const tags = product.categories_tags ?? [];

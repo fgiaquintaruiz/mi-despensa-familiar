@@ -22,6 +22,8 @@ export async function addProductAction(
   const stockRaw = formData.get('current_stock');
   const current_stock = stockRaw ? Number(stockRaw) : 1;
   const barcode = (formData.get('barcode') as string | null)?.trim() || null;
+  const brand = (formData.get('brand') as string | null)?.trim() || null;
+  const price = Number(formData.get('price') ?? 0);
 
   if (!name) {
     return { error: 'El nombre del producto es obligatorio.' };
@@ -54,10 +56,10 @@ export async function addProductAction(
     name,
     category,
     current_stock,
-    brand: null,
+    brand,
     unit: null,
     min_stock: 0,
-    price: 0,
+    price,
     barcode: barcode || null,
   });
 

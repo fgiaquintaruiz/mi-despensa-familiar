@@ -14,6 +14,8 @@ export default function AddProductSheet() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [stock, setStock] = useState(1);
   const [name, setName] = useState('');
+  const [brand, setBrand] = useState('');
+  const [price, setPrice] = useState(0);
   const [barcode, setBarcode] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
 
@@ -25,6 +27,8 @@ export default function AddProductSheet() {
       if (!result.error) {
         setOpen(false);
         setName('');
+        setBrand('');
+        setPrice(0);
         setSelectedCategory(null);
         setStock(1);
         setBarcode('');
@@ -38,6 +42,8 @@ export default function AddProductSheet() {
   function handleClose() {
     setOpen(false);
     setName('');
+    setBrand('');
+    setPrice(0);
     setSelectedCategory(null);
     setStock(1);
     setBarcode('');
@@ -50,6 +56,7 @@ export default function AddProductSheet() {
     const product = await lookupBarcode(scannedBarcode);
     if (product) {
       setName(product.name);
+      if (product.brand) setBrand(product.brand);
       if (product.category) {
         setSelectedCategory(product.category);
       }
@@ -112,6 +119,21 @@ export default function AddProductSheet() {
               </div>
 
               <div className="mb-4">
+                <label htmlFor="product-brand" className="mb-1 block text-sm font-medium text-gray-700">
+                  Marca <span className="font-normal text-gray-400">(opcional)</span>
+                </label>
+                <input
+                  id="product-brand"
+                  name="brand"
+                  type="text"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  placeholder="Marca (opcional)"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+                />
+              </div>
+
+              <div className="mb-4">
                 <p className="mb-2 text-sm font-medium text-gray-700">Categoría</p>
                 <div className="flex flex-wrap gap-2">
                   {CATEGORIES.map((cat) => {
@@ -135,7 +157,7 @@ export default function AddProductSheet() {
                 </div>
               </div>
 
-              <div className="mb-6">
+              <div className="mb-4">
                 <p className="mb-2 text-sm font-medium text-gray-700">Cantidad inicial</p>
                 <div className="flex items-center gap-4">
                   <button
@@ -158,6 +180,23 @@ export default function AddProductSheet() {
                     +
                   </button>
                 </div>
+              </div>
+
+              <div className="mb-6">
+                <label htmlFor="product-price" className="mb-1 block text-sm font-medium text-gray-700">
+                  Precio <span className="font-normal text-gray-400">(opcional)</span>
+                </label>
+                <input
+                  id="product-price"
+                  name="price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={price}
+                  onChange={(e) => setPrice(Number(e.target.value))}
+                  placeholder="0.00"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+                />
               </div>
 
               {state?.error && (

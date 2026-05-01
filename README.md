@@ -29,16 +29,17 @@ App de gestión de inventario familiar — PWA construida con Next.js 15 + Supab
 ## Roadmap
 
 Ver `docs/briefing.md` para el plan completo. MVP:
-- [ ] Schema Supabase (products, consumption_logs)
-- [ ] Auth por household
-- [ ] CRUD inventario UI
-- [ ] Registro de consumo
-- [ ] Lista de compra calculada
-- [ ] Escáner código de barras (BarcodeDetector + Open Food Facts)
-- [ ] Importar ticket Mercadona (PDF)
-- [ ] PWA install + service worker
-- [ ] Parsers Carrefour, Aldi, Eroski
+- [x] Schema Supabase (products, consumption_logs)
+- [x] Auth por household
+- [x] CRUD inventario UI
+- [x] Registro de consumo
+- [x] Lista de compra calculada (Smart Shopping List)
+- [x] Escáner código de barras
+- [x] Importar ticket Mercadona (PDF)
+- [x] PWA install + service worker (offline básico)
+- [ ] Parsers Carrefour, Aldi, Eroski (pendientes de muestra PDF)
 - [ ] (futuro) OCR cloud para tickets de papel
+
 
 ## TODO assets
 

@@ -66,9 +66,9 @@ function extractItems(text: string): ParsedTicketItem[] {
 }
 
 async function extractTextFromBuffer(buffer: Buffer): Promise<string> {
-  const parser = new PDFParse({ source: buffer });
+  const parser = new PDFParse({ data: buffer });
   const result = await parser.getText();
-  return result.text ?? result.pages?.map((p: { text: string }) => p.text).join('\n') ?? '';
+  return result.text ?? '';
 }
 
 export const mercadonaParser: TicketParser = {

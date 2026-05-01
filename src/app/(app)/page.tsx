@@ -40,6 +40,12 @@ export default async function Home() {
           <h1 className="text-3xl font-extrabold text-[var(--color-brand)]">Mi Despensa</h1>
           <div className="flex items-center gap-2">
             <Link
+              href="/shopping-list"
+              className="rounded-lg border border-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-[var(--color-brand)]"
+            >
+              Lista compra
+            </Link>
+            <Link
               href="/import-ticket"
               className="rounded-lg border border-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-[var(--color-brand)]"
             >

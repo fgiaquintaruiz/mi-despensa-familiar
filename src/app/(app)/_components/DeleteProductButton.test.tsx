@@ -49,7 +49,7 @@ describe('DeleteProductButton', () => {
 
   it('calls router.refresh() after successful delete', async () => {
     const mockRefresh = vi.fn();
-    vi.mocked(useRouter).mockReturnValue({ push: vi.fn(), refresh: mockRefresh } as ReturnType<typeof useRouter>);
+    vi.mocked(useRouter).mockReturnValue({ push: vi.fn(), refresh: mockRefresh } as unknown as ReturnType<typeof useRouter>);
     render(<DeleteProductButton productId="p-1" productName="Arroz" />);
     fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
     const confirmButtons = screen.getAllByRole('button', { name: /eliminar/i });

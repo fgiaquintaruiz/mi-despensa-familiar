@@ -113,7 +113,7 @@ describe('ImportTicketPage', () => {
     mockFetchSuccess();
     vi.mocked(importTicketItemsAction).mockResolvedValue({ imported: 2 });
     const mockPush = vi.fn();
-    vi.mocked(useRouter).mockReturnValue({ push: mockPush } as ReturnType<typeof useRouter>);
+    vi.mocked(useRouter).mockReturnValue({ push: mockPush } as unknown as ReturnType<typeof useRouter>);
     render(<ImportTicketPage />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;

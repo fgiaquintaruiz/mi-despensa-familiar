@@ -67,7 +67,7 @@ describe('EditForm', () => {
 
   it('clicking Cancelar calls router.push("/")', () => {
     const mockPush = vi.fn();
-    vi.mocked(useRouter).mockReturnValue({ push: mockPush, refresh: vi.fn() } as ReturnType<typeof useRouter>);
+    vi.mocked(useRouter).mockReturnValue({ push: mockPush, refresh: vi.fn() } as unknown as ReturnType<typeof useRouter>);
     render(<EditForm product={makeProduct()} />);
     fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
     expect(mockPush).toHaveBeenCalledWith('/');

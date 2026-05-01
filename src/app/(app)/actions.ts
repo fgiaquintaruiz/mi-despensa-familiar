@@ -145,23 +145,139 @@ export async function importTicketItemsAction(
     .limit(1)
     .maybeSingle();
 
-  const { error } = await supabase.from('products').insert(
-    items.map((i) => ({
-      household_id: membership!.household_id,
-      name: i.name,
-      category: i.category,
-      current_stock: i.qty,
-      price: i.price,
-      brand: null,
-      unit: null,
-      min_stock: 0,
-    })),
-  );
+  if (!membership) return { error: 'No se encontró el hogar', imported: 0 };
 
-  if (error) return { error: error.message, imported: 0 };
+  // Fetch all existing products for this household for deduplication
+  const { data: existingProducts } = await supabase
+    .from('products')
+    .select('id, name, current_stock')
+    .eq('household_id', membership.household_id);
+
+  const productMap = new Map((existingProducts || []).map((p) => [p.name.toLowerCase(), p]));
+
+  let importedCount = 0;
+
+  for (const item of items) {
+    const existing = productMap.get(item.name.toLowerCase());
+    let productId: string;
+
+    if (existing) {
+      productId = existing.id;
+      // Update existing product
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({
+          current_stock: Number(existing.current_stock) + item.qty,
+          price: item.price,
+        })
+        .eq('id', existing.id);
+
+      if (updateError) continue;
+
+      // Update local map for subsequent items in the same ticket
+      existing.current_stock = Number(existing.current_stock) + item.qty;
+    } else {
+      // Insert new product
+      const { data: newProduct, error: insertError } = await supabase
+        .from('products')
+        .insert({
+          household_id: membership.household_id,
+          name: item.name,
+          category: item.category,
+          current_stock: item.qty,
+          price: item.price,
+          brand: null,
+          unit: null,
+          min_stock: 0,
+        })
+        .select('id')
+        .single();
+
+      if (insertError || !newProduct) continue;
+      productId = newProduct.id;
+
+      // Add to local map
+      productMap.set(item.name.toLowerCase(), {
+        id: productId,
+        name: item.name,
+        current_stock: item.qty,
+      });
+    }
+
+    // Log restock
+    await supabase.from('consumption_logs').insert({
+      product_id: productId,
+      qty: item.qty,
+      type: 'restock',
+    });
+
+    importedCount++;
+  }
 
   revalidatePath('/');
-  return { imported: items.length };
+  return { imported: importedCount };
+}
+
+export async function consumeProductAction(productId: string): Promise<{ error?: string }> {
+  if (!productId) {
+    return { error: 'ID del producto es obligatorio.' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'No autenticado' };
+  }
+
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) {
+    return { error: 'No se encontró el hogar' };
+  }
+
+  // 1. Fetch current product to check stock
+  const { data: product, error: fetchError } = await supabase
+    .from('products')
+    .select('id, current_stock')
+    .eq('id', productId)
+    .eq('household_id', membership.household_id)
+    .single();
+
+  if (fetchError || !product) {
+    return { error: 'Producto no encontrado' };
+  }
+
+  if (product.current_stock <= 0) {
+    return { error: 'No hay stock disponible' };
+  }
+
+  // 2. Decrement stock
+  const { error: updateError } = await supabase
+    .from('products')
+    .update({ current_stock: product.current_stock - 1 })
+    .eq('id', productId);
+
+  if (updateError) {
+    return { error: updateError.message };
+  }
+
+  // 3. Log consumption
+  await supabase.from('consumption_logs').insert({
+    product_id: productId,
+    qty: 1,
+    type: null,
+  });
+
+  revalidatePath('/');
+  return {};
 }
 
 export async function deleteProductAction(productId: string): Promise<{ error?: string }> {

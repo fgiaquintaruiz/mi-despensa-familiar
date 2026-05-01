@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { categoryLabel } from '@/lib/types';
 import type { Product } from '@/lib/types';
 import DeleteProductButton from './DeleteProductButton';
+import ConsumeButton from './ConsumeButton';
 
 interface Props {
   products: Product[];
@@ -30,6 +31,7 @@ export default function ProductList({ products }: Props) {
             <p className="text-xs text-gray-500">{categoryLabel(product.category)}</p>
           </div>
           <div className="flex items-center gap-2">
+            <ConsumeButton productId={product.id} currentStock={product.current_stock} />
             <span className="text-sm font-semibold">{product.current_stock}</span>
             {isLowStock(product) && (
               <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-600">

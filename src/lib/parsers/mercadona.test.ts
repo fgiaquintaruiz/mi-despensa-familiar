@@ -10,18 +10,21 @@ Descripción P. Unit Importe
 TOTAL (€) 24,75
 TARJETA BANCARIA 24,75`;
 
-const mockGetText = vi.fn();
+const { mockGetText } = vi.hoisted(() => ({
+  mockGetText: vi.fn(),
+}));
 
 vi.mock('pdf-parse', () => {
-  function PDFParse() {
-    return { getText: mockGetText };
-  }
-  return { PDFParse };
+  return {
+    PDFParse: function() {
+      return { getText: mockGetText };
+    },
+  };
 });
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockGetText.mockResolvedValue({ text: SAMPLE_TEXT, pages: [] });
+  mockGetText.mockResolvedValue({ text: SAMPLE_TEXT });
 });
 
 describe('mercadonaParser.canParse', () => {

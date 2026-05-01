@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import type { Product } from '@/lib/types';
 import DashboardStats from './_components/DashboardStats';
 import ProductList from './_components/ProductList';
+import AddProductSheet from './_components/AddProductSheet';
 
 export default async function Home() {
   const supabase = await createClient();
@@ -31,12 +32,15 @@ export default async function Home() {
   const categories = new Set(list.map((p) => p.category)).size;
 
   return (
-    <main className="mx-auto max-w-[480px] px-5 py-8">
-      <h1 className="mb-6 text-3xl font-extrabold text-[var(--color-brand)]">
-        Mi Despensa
-      </h1>
-      <DashboardStats total={total} lowStock={lowStock} categories={categories} />
-      <ProductList products={list} />
-    </main>
+    <>
+      <main className="mx-auto max-w-[480px] px-5 py-8">
+        <h1 className="mb-6 text-3xl font-extrabold text-[var(--color-brand)]">
+          Mi Despensa
+        </h1>
+        <DashboardStats total={total} lowStock={lowStock} categories={categories} />
+        <ProductList products={list} />
+      </main>
+      <AddProductSheet />
+    </>
   );
 }

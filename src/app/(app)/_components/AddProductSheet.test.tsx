@@ -4,6 +4,16 @@ import AddProductSheet from './AddProductSheet';
 import { CATEGORIES, categoryLabel } from '@/lib/types';
 import type { Category } from '@/lib/types';
 
+const mockUseBarcodeScanner = vi.hoisted(() =>
+  vi.fn().mockReturnValue({
+    videoRef: { current: null },
+    isSupported: false,
+    isScanning: false,
+    startScan: vi.fn().mockResolvedValue(undefined),
+    stopScan: vi.fn(),
+  }),
+);
+
 vi.mock('../actions', () => ({
   addProductAction: vi.fn().mockResolvedValue({}),
 }));
@@ -20,8 +30,29 @@ vi.mock('react', async (importOriginal) => {
   };
 });
 
+vi.mock('@/lib/barcode/open-food-facts', () => ({
+  lookupBarcode: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock('@/lib/barcode/use-barcode-scanner', () => ({
+  useBarcodeScanner: mockUseBarcodeScanner,
+}));
+
+vi.mock('./BarcodeScanner', () => ({
+  default: vi.fn().mockReturnValue(null),
+}));
+
 describe('AddProductSheet', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseBarcodeScanner.mockReturnValue({
+      videoRef: { current: null },
+      isSupported: false,
+      isScanning: false,
+      startScan: vi.fn().mockResolvedValue(undefined),
+      stopScan: vi.fn(),
+    });
+  });
 
   it('renders the FAB with "+" label', () => {
     render(<AddProductSheet />);
@@ -120,5 +151,25 @@ describe('AddProductSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: /\+/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('Escanear código button is not shown when BarcodeDetector is not supported', () => {
+    render(<AddProductSheet />);
+    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    expect(screen.queryByText(/escanear código/i)).not.toBeInTheDocument();
+  });
+
+  it('Escanear código button is shown when BarcodeDetector is supported', () => {
+    mockUseBarcodeScanner.mockReturnValue({
+      videoRef: { current: null },
+      isSupported: true,
+      isScanning: false,
+      startScan: vi.fn().mockResolvedValue(undefined),
+      stopScan: vi.fn(),
+    });
+
+    render(<AddProductSheet />);
+    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    expect(screen.getByText(/escanear código/i)).toBeInTheDocument();
   });
 });

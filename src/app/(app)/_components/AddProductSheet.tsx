@@ -4,6 +4,9 @@ import { useActionState, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CATEGORIES, categoryLabel, type Category } from '@/lib/types';
 import { addProductAction } from '../actions';
+import { lookupBarcode } from '@/lib/barcode/open-food-facts';
+import { useBarcodeScanner } from '@/lib/barcode/use-barcode-scanner';
+import BarcodeScanner from './BarcodeScanner';
 
 export default function AddProductSheet() {
   const router = useRouter();
@@ -11,6 +14,10 @@ export default function AddProductSheet() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [stock, setStock] = useState(1);
   const [name, setName] = useState('');
+  const [barcode, setBarcode] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
+
+  const { isSupported } = useBarcodeScanner(() => {});
 
   const [state, formAction] = useActionState(
     async (prev: unknown, fd: FormData) => {
@@ -20,6 +27,7 @@ export default function AddProductSheet() {
         setName('');
         setSelectedCategory(null);
         setStock(1);
+        setBarcode('');
         router.refresh();
       }
       return result;
@@ -32,6 +40,20 @@ export default function AddProductSheet() {
     setName('');
     setSelectedCategory(null);
     setStock(1);
+    setBarcode('');
+  }
+
+  async function handleBarcodeScanned(scannedBarcode: string) {
+    setScannerOpen(false);
+    setBarcode(scannedBarcode);
+
+    const product = await lookupBarcode(scannedBarcode);
+    if (product) {
+      setName(product.name);
+      if (product.category) {
+        setSelectedCategory(product.category);
+      }
+    }
   }
 
   const canSubmit = name.trim().length > 0 && selectedCategory !== null;
@@ -61,8 +83,20 @@ export default function AddProductSheet() {
               {selectedCategory && (
                 <input type="hidden" name="category" value={selectedCategory} />
               )}
+              {barcode && (
+                <input type="hidden" name="barcode" value={barcode} />
+              )}
 
               <div className="mb-4">
+                {isSupported && (
+                  <button
+                    type="button"
+                    onClick={() => setScannerOpen(true)}
+                    className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                  >
+                    📷 Escanear código
+                  </button>
+                )}
                 <label htmlFor="product-name" className="mb-1 block text-sm font-medium text-gray-700">
                   Nombre del producto
                 </label>
@@ -149,6 +183,13 @@ export default function AddProductSheet() {
             </form>
           </div>
         </>
+      )}
+
+      {scannerOpen && (
+        <BarcodeScanner
+          onScanned={handleBarcodeScanned}
+          onClose={() => setScannerOpen(false)}
+        />
       )}
     </>
   );

@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { isEmailAllowed } from '@/lib/auth/whitelist';
 
 export type LoginState = { error: string } | undefined;
 
@@ -26,6 +27,10 @@ export async function loginAction(
       parsed.error.flatten().fieldErrors.password?.[0] ??
       'Datos inválidos.';
     return { error: firstError };
+  }
+
+  if (!isEmailAllowed(parsed.data.email)) {
+    return { error: 'Acceso no autorizado.' };
   }
 
   const supabase = await createClient();

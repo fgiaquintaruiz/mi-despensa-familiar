@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { addProductAction, updateProductAction, deleteProductAction } from './actions';
+import { addProductAction, updateProductAction, deleteProductAction, logoutAction } from './actions';
 import { createClient } from '@/lib/supabase/server';
 
 vi.mock('@/lib/supabase/server');
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn((url: string) => {
+    throw Object.assign(new Error('NEXT_REDIRECT'), { digest: `NEXT_REDIRECT:${url}` });
+  }),
+}));
 
 const mockInsert = vi.fn();
 const mockUpdate = vi.fn();
@@ -208,5 +213,27 @@ describe('deleteProductAction', () => {
     const result = await deleteProductAction('p-1');
     expect(result).toEqual({});
     expect(mockDelete).toHaveBeenCalled();
+  });
+});
+
+describe('logoutAction', () => {
+  const mockSignOut = vi.fn().mockResolvedValue({});
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(createClient).mockResolvedValue({
+      auth: { signOut: mockSignOut },
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
+  });
+
+  it('calls signOut()', async () => {
+    await logoutAction().catch(() => {});
+    expect(mockSignOut).toHaveBeenCalledOnce();
+  });
+
+  it('redirects to /login after signOut', async () => {
+    const { redirect } = await import('next/navigation');
+    await logoutAction().catch(() => {});
+    expect(redirect).toHaveBeenCalledWith('/login');
   });
 });

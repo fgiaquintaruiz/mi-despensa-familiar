@@ -13,7 +13,7 @@ interface OcrResult {
 }
 
 interface OcrActions {
-  recognize: (file: File) => Promise<{ items: ParsedTicketItem[]; rawText: string | null; error: string | null }>;
+  recognize: (file: File) => Promise<{ items: ParsedTicketItem[]; rawText: string | null; error: string | null; detectedSupermarket: string | null }>;
   /** Retry parsing with a known parser hint (e.g. 'mercadona'). Requires rawText to be set. */
   retryWithHint: (hint: string) => Promise<{ items: ParsedTicketItem[]; error: string | null }>;
   reset: () => void;
@@ -32,7 +32,7 @@ export function useOcr(): OcrResult & OcrActions {
   const [items, setItems] = useState<ParsedTicketItem[]>([]);
   const [rawText, setRawText] = useState<string | null>(null);
 
-  async function recognize(file: File): Promise<{ items: ParsedTicketItem[]; rawText: string | null; error: string | null }> {
+  async function recognize(file: File): Promise<{ items: ParsedTicketItem[]; rawText: string | null; error: string | null; detectedSupermarket: string | null }> {
     setIsProcessing(true);
     setProgress(0);
     setError(null);
@@ -58,6 +58,7 @@ export function useOcr(): OcrResult & OcrActions {
       setRawText(data.text);
 
       let parsed: ParsedTicketItem[] = [];
+      let detectedSupermarket: string | null = null;
 
       try {
         const res = await fetch('/api/parse-ticket-text', {
@@ -72,23 +73,25 @@ export function useOcr(): OcrResult & OcrActions {
 
         const result = (await res.json()) as ParseTicketTextResponse;
         parsed = result.items ?? [];
+        // parser is populated only when auto-detection matched (no hint was sent)
+        detectedSupermarket = result.parser ?? null;
       } catch {
         const err = 'Error al contactar el servidor. Intentá de nuevo.';
         setError(err);
-        return { items: [], rawText: data.text, error: err };
+        return { items: [], rawText: data.text, error: err, detectedSupermarket: null };
       }
 
       if (parsed.length === 0) {
         // Return rawText without setting error — the page decides what to show
-        return { items: [], rawText: data.text, error: null };
+        return { items: [], rawText: data.text, error: null, detectedSupermarket: null };
       }
 
       setItems(parsed);
-      return { items: parsed, rawText: data.text, error: null };
+      return { items: parsed, rawText: data.text, error: null, detectedSupermarket };
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error desconocido al procesar la imagen';
       setError(msg);
-      return { items: [], rawText: null, error: msg };
+      return { items: [], rawText: null, error: msg, detectedSupermarket: null };
     } finally {
       setIsProcessing(false);
       setProgress(0);

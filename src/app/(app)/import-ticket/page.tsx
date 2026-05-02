@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, Suspense } from 'react';
+import { useRef, useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import type { Category } from '@/lib/types';
@@ -62,6 +62,8 @@ const HINT_BUTTONS: { label: string; value: SupermarketHint }[] = [
   { label: 'Otro', value: 'otro' },
 ];
 
+const COUNTDOWN_START = 3;
+
 export default function ImportTicketPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,7 +81,80 @@ export default function ImportTicketPage() {
   const [selectedHint, setSelectedHint] = useState<SupermarketHint | null>(null);
   /** Free-form product lines typed by the user when 'Otro' is selected. */
   const [manualText, setManualText] = useState('');
+  /** Whether the item list is collapsed (summary view). Default true when items arrive. */
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  /** Active countdown tick (null = inactive, 0..3 = ticking). */
+  const [countdown, setCountdown] = useState<number | null>(null);
+  /** True when the parser detected the supermarket automatically (no hint used). */
+  const [autoDetected, setAutoDetected] = useState(false);
+  /** Detected supermarket name, used in the summary card. */
+  const [detectedStore, setDetectedStore] = useState<string | null>(null);
+
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ocr = useOcr();
+
+  /** Start the 3-second countdown. Cleans up any prior interval first. */
+  function startCountdown() {
+    stopCountdown();
+    setCountdown(COUNTDOWN_START);
+  }
+
+  /** Stop and clear the active countdown. */
+  function stopCountdown() {
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setCountdown(null);
+  }
+
+  /** Fire the import with all items (no selection filter). */
+  async function importAll(itemRows: ItemRow[]) {
+    const allItems = itemRows.map(({ name, qty, price, category }) => ({
+      name,
+      qty,
+      price,
+      category,
+    }));
+    setImporting(true);
+    const result = await importTicketItemsAction(allItems);
+    setImporting(false);
+    if (result.error) {
+      setImportError(result.error);
+      return;
+    }
+    setImported(result.imported);
+  }
+
+  // Countdown effect: ticks every second, fires importAll at 0.
+  useEffect(() => {
+    if (countdown === null) return;
+
+    if (countdown === 0) {
+      stopCountdown();
+      void importAll(rows);
+      return;
+    }
+
+    intervalRef.current = setInterval(() => {
+      setCountdown((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown]);
+
+  // Cleanup on unmount.
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current !== null) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -91,6 +166,10 @@ export default function ImportTicketPage() {
     setNoDetection(false);
     setImported(null);
     setImportError(null);
+    setIsCollapsed(true);
+    setAutoDetected(false);
+    setDetectedStore(null);
+    stopCountdown();
 
     const formData = new FormData();
     formData.append('file', file);
@@ -106,7 +185,10 @@ export default function ImportTicketPage() {
       return;
     }
 
-    setRows((data.items as TicketItem[]).map((item) => ({ ...item, selected: true })));
+    // PDF path does not auto-detect store — treat as manual (no countdown).
+    const newRows = (data.items as TicketItem[]).map((item) => ({ ...item, selected: true }));
+    setRows(newRows);
+    setAutoDetected(false);
   }
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -122,8 +204,12 @@ export default function ImportTicketPage() {
     setShowHintSelector(false);
     setSelectedHint(null);
     setManualText('');
+    setIsCollapsed(true);
+    setAutoDetected(false);
+    setDetectedStore(null);
+    stopCountdown();
 
-    const { items, error: ocrError } = await ocr.recognize(file);
+    const { items, error: ocrError, detectedSupermarket } = await ocr.recognize(file);
 
     setAnalyzing(false);
     setAnalyzingSource(null);
@@ -139,7 +225,19 @@ export default function ImportTicketPage() {
       return;
     }
 
-    setRows((items as TicketItem[]).map((item) => ({ ...item, selected: true })));
+    const newRows = (items as TicketItem[]).map((item) => ({ ...item, selected: true }));
+    setRows(newRows);
+
+    // Auto-detection: ocr.recognize returns detectedSupermarket when it matched
+    // without a hint. Only activate countdown in that case.
+    if (detectedSupermarket) {
+      setAutoDetected(true);
+      setDetectedStore(detectedSupermarket);
+      startCountdown();
+    } else {
+      setAutoDetected(false);
+      setDetectedStore(null);
+    }
   }
 
   async function handleHintSelect(hint: SupermarketHint) {
@@ -153,7 +251,11 @@ export default function ImportTicketPage() {
       return;
     }
     setShowHintSelector(false);
-    setRows((items as TicketItem[]).map((item) => ({ ...item, selected: true })));
+    const newRows = (items as TicketItem[]).map((item) => ({ ...item, selected: true }));
+    setRows(newRows);
+    // Hint was used manually — no countdown, progressive disclosure only.
+    setAutoDetected(false);
+    setDetectedStore(hint);
   }
 
   async function handleManualSubmit() {
@@ -180,6 +282,7 @@ export default function ImportTicketPage() {
       setShowHintSelector(false);
       setSelectedHint(null);
       setRows(items.map((item) => ({ ...item, selected: true })));
+      setAutoDetected(false);
     } catch {
       setImportError('Error al procesar el texto. Intentá de nuevo.');
     }
@@ -209,6 +312,16 @@ export default function ImportTicketPage() {
     }
 
     setImported(result.imported);
+  }
+
+  function handleCancelCountdown() {
+    stopCountdown();
+    // Keep collapsed view — user can still "Ver y editar" or "Importar todo" manually.
+  }
+
+  function handleExpandAndCancel() {
+    stopCountdown();
+    setIsCollapsed(false);
   }
 
   if (imported !== null) {
@@ -357,32 +470,108 @@ export default function ImportTicketPage() {
 
       {rows.length > 0 && (
         <>
-          <ul className="flex flex-col gap-2">
-            {rows.map((row, idx) => (
-              <li key={idx} className="flex items-center gap-3 rounded-lg border p-3">
-                <input
-                  type="checkbox"
-                  checked={row.selected}
-                  onChange={() => toggleRow(idx)}
-                  className="h-4 w-4 accent-[var(--color-brand)]"
-                />
-                <span className="flex-1 text-sm font-medium">{row.name}</span>
-                <span className="text-xs text-gray-500">x{row.qty}</span>
-                <span className="text-xs text-gray-500">{row.price.toFixed(2)} €</span>
-                <span className="text-xs text-gray-400">{row.category}</span>
-              </li>
-            ))}
-          </ul>
+          {/* Countdown banner — only when autoDetected and countdown is active */}
+          {countdown !== null && (
+            <div className="flex items-center justify-between rounded-xl border border-orange-300 bg-orange-100 px-4 py-3">
+              <p className="text-sm font-semibold text-orange-800">
+                Importando en <span className="text-xl font-extrabold tabular-nums">{countdown}</span>...
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleExpandAndCancel}
+                  className="rounded-lg border border-orange-400 px-3 py-1 text-xs font-semibold text-orange-800 hover:bg-orange-200"
+                >
+                  Ver y editar
+                </button>
+                <button
+                  onClick={handleCancelCountdown}
+                  className="rounded-lg bg-orange-500 px-3 py-1 text-xs font-semibold text-white hover:bg-orange-600"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
 
-          <button
-            onClick={handleImport}
-            disabled={importing || rows.every((r) => !r.selected)}
-            className="rounded-lg bg-[var(--color-brand)] px-4 py-2 text-white font-semibold disabled:opacity-50"
-          >
-            {importing ? 'Importando...' : 'Importar seleccionados'}
-          </button>
+          {/* Collapsed summary view */}
+          {isCollapsed ? (
+            <div className="flex flex-col gap-3 rounded-xl border border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_8%,white)] p-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-extrabold text-[var(--color-brand)]">
+                  {rows.length}
+                </span>
+                <span className="text-sm font-medium text-gray-700">
+                  {rows.length === 1 ? 'producto' : 'productos'}
+                  {detectedStore ? ` de ${capitalize(detectedStore)}` : ''} listos para importar
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => void importAll(rows)}
+                  disabled={importing}
+                  className="flex-1 rounded-lg bg-[var(--color-brand)] py-2 text-sm font-bold text-white disabled:opacity-50 active:opacity-80"
+                >
+                  {importing ? 'Importando...' : 'Importar todo'}
+                </button>
+                <button
+                  onClick={() => {
+                    stopCountdown();
+                    setIsCollapsed(false);
+                  }}
+                  className="rounded-lg border border-[var(--color-brand)] px-3 py-2 text-sm font-semibold text-[var(--color-brand)] hover:bg-[var(--color-brand)] hover:text-white"
+                >
+                  Ver y editar
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Expanded list view */
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-500">
+                  {rows.length} {rows.length === 1 ? 'producto' : 'productos'}
+                  {detectedStore ? ` · ${capitalize(detectedStore)}` : ''}
+                </span>
+                <button
+                  onClick={() => setIsCollapsed(true)}
+                  className="text-xs font-semibold text-[var(--color-brand)] hover:opacity-75"
+                >
+                  Colapsar
+                </button>
+              </div>
+
+              <ul className="flex flex-col gap-2">
+                {rows.map((row, idx) => (
+                  <li key={idx} className="flex items-center gap-3 rounded-lg border p-3">
+                    <input
+                      type="checkbox"
+                      checked={row.selected}
+                      onChange={() => toggleRow(idx)}
+                      className="h-4 w-4 accent-[var(--color-brand)]"
+                    />
+                    <span className="flex-1 text-sm font-medium">{row.name}</span>
+                    <span className="text-xs text-gray-500">x{row.qty}</span>
+                    <span className="text-xs text-gray-500">{row.price.toFixed(2)} €</span>
+                    <span className="text-xs text-gray-400">{row.category}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                onClick={handleImport}
+                disabled={importing || rows.every((r) => !r.selected)}
+                className="rounded-lg bg-[var(--color-brand)] px-4 py-2 text-white font-semibold disabled:opacity-50"
+              >
+                {importing ? 'Importando...' : 'Importar seleccionados'}
+              </button>
+            </>
+          )}
         </>
       )}
     </main>
   );
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

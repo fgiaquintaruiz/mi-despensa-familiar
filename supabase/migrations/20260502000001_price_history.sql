@@ -14,7 +14,7 @@ CREATE POLICY "Users read own price history"
   USING (
     product_id IN (
       SELECT id FROM public.products WHERE household_id IN (
-        SELECT id FROM public.households WHERE owner_id = auth.uid()
+        SELECT household_id FROM public.household_members WHERE user_id = auth.uid()
       )
     )
   );
@@ -24,7 +24,7 @@ CREATE POLICY "Users insert own price history"
   WITH CHECK (
     product_id IN (
       SELECT id FROM public.products WHERE household_id IN (
-        SELECT id FROM public.households WHERE owner_id = auth.uid()
+        SELECT household_id FROM public.household_members WHERE user_id = auth.uid()
       )
     )
   );

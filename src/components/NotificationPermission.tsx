@@ -20,6 +20,7 @@ export default function NotificationPermission() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
       setPermission('unsupported');
       return;
@@ -59,21 +60,64 @@ export default function NotificationPermission() {
     }
   };
 
+  const handleDisable = async () => {
+    setLoading(true);
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await subscription.unsubscribe();
+        await fetch('/api/push/subscribe', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
+      }
+      // Browsers don't allow resetting Notification.permission to 'default' programmatically.
+      // After unsubscribing, 'denied' is the most honest state — user must re-allow from browser settings.
+      setPermission('denied');
+    } catch (err) {
+      console.error('Error al desactivar notificaciones:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (permission === 'unsupported') return null;
 
   if (permission === 'granted') {
     return (
-      <span className="text-xs text-green-600 font-medium">
-        Notificaciones activas
-      </span>
+      <button
+        onClick={handleDisable}
+        disabled={loading}
+        title="Las notificaciones están activas. Hacé clic para desactivarlas."
+        className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-500 hover:border-red-300 hover:text-red-500 disabled:opacity-50 transition-colors"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
+          <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
+          <path d="M18 8a6 6 0 0 0-9.33-5" />
+          <line x1="1" y1="1" x2="23" y2="23" />
+        </svg>
+        <span>{loading ? 'Desactivando...' : 'Notificaciones activas'}</span>
+      </button>
     );
   }
 
   if (permission === 'denied') {
     return (
-      <span className="text-xs text-red-500 font-medium">
-        Notificaciones bloqueadas (activar en config del browser)
-      </span>
+      <button
+        disabled
+        title="Notificaciones bloqueadas. Para activarlas, habilitá los permisos en la configuración de tu navegador."
+        className="flex items-center gap-2 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-semibold text-red-400 opacity-60 cursor-not-allowed"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+        </svg>
+        <span>Notificaciones bloqueadas</span>
+      </button>
     );
   }
 
@@ -81,9 +125,13 @@ export default function NotificationPermission() {
     <button
       onClick={handleEnable}
       disabled={loading}
-      className="rounded-lg border border-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-[var(--color-brand)] disabled:opacity-50"
+      className="flex items-center gap-2 rounded-lg border border-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-[var(--color-brand)] hover:bg-[var(--color-brand)] hover:text-white disabled:opacity-50 transition-colors"
     >
-      {loading ? 'Activando...' : 'Activar notificaciones'}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      </svg>
+      <span>{loading ? 'Activando...' : 'Activar notificaciones'}</span>
     </button>
   );
 }

@@ -158,15 +158,24 @@ function ProfileIcon() {
 
 function NavLinks({ onClick }: { onClick?: () => void }) {
   const linkClass =
-    'block rounded-lg border border-[var(--color-brand)] px-3 py-2 text-sm font-semibold text-[var(--color-brand)] md:py-1.5';
+    'flex items-center gap-2 rounded-lg border border-[var(--color-brand)] px-3 py-2 text-sm font-semibold text-[var(--color-brand)] md:py-1.5';
 
   return (
     <>
       <Link href="/stats" className={linkClass} onClick={onClick}>
-        Stats
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+          <line x1="18" y1="20" x2="18" y2="10" />
+          <line x1="12" y1="20" x2="12" y2="4" />
+          <line x1="6" y1="20" x2="6" y2="14" />
+        </svg>
+        <span>Stats</span>
       </Link>
       <Link href="/shopping-list" className={linkClass} onClick={onClick}>
-        Lista compra
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+          <polyline points="9 11 12 14 22 4" />
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+        </svg>
+        <span>Lista compra</span>
       </Link>
     </>
   );

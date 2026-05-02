@@ -218,6 +218,15 @@ export default function ImportTicketPage() {
       <Suspense fallback={null}>
         <AutoTrigger pdfInputRef={inputRef} photoInputRef={photoRef} />
       </Suspense>
+      <button
+        onClick={() => router.back()}
+        className="mb-4 flex items-center gap-1 text-sm font-medium text-[var(--color-brand)] hover:opacity-75"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Volver
+      </button>
       <h1 className="text-2xl font-extrabold text-[var(--color-brand)]">Importar ticket</h1>
 
       <div className="flex gap-3">

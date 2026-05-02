@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CATEGORIES, categoryLabel, type Category } from '@/lib/types';
 import { addProductAction } from '../actions';
@@ -18,8 +18,25 @@ export default function AddProductSheet() {
   const [price, setPrice] = useState(0);
   const [barcode, setBarcode] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [autoSaveCountdown, setAutoSaveCountdown] = useState<number | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const { isSupported } = useBarcodeScanner(() => {});
+
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
+
+  function cancelCountdown() {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    setAutoSaveCountdown(null);
+  }
 
   const [state, formAction] = useActionState(
     async (prev: unknown, fd: FormData) => {
@@ -40,6 +57,7 @@ export default function AddProductSheet() {
   );
 
   function handleClose() {
+    cancelCountdown();
     setOpen(false);
     setName('');
     setBrand('');
@@ -60,6 +78,19 @@ export default function AddProductSheet() {
       if (product.category) {
         setSelectedCategory(product.category);
       }
+
+      setAutoSaveCountdown(3);
+      countdownRef.current = setInterval(() => {
+        setAutoSaveCountdown(prev => {
+          if (prev === null || prev <= 1) {
+            clearInterval(countdownRef.current!);
+            countdownRef.current = null;
+            setTimeout(() => formRef.current?.requestSubmit(), 0);
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     }
   }
 
@@ -85,13 +116,20 @@ export default function AddProductSheet() {
           />
 
           <div className="fixed inset-x-0 bottom-0 rounded-t-2xl bg-white p-6 shadow-xl">
-            <form action={formAction}>
+            <form ref={formRef} action={formAction} onPointerDown={cancelCountdown}>
               <input type="hidden" name="current_stock" value={stock} />
               {selectedCategory && (
                 <input type="hidden" name="category" value={selectedCategory} />
               )}
               {barcode && (
                 <input type="hidden" name="barcode" value={barcode} />
+              )}
+
+              {autoSaveCountdown !== null && (
+                <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between rounded-t-2xl bg-[var(--color-brand)] px-4 py-2 text-white">
+                  <span className="text-sm font-medium">Guardando automáticamente...</span>
+                  <span className="text-2xl font-bold">{autoSaveCountdown}</span>
+                </div>
               )}
 
               <div className="mb-4">

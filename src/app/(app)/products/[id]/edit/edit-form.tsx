@@ -152,7 +152,7 @@ export default function EditForm({ product }: Props) {
         </div>
       </div>
 
-      <div className="mb-6">
+      <div className="mb-4">
         <label htmlFor="edit-price" className="mb-1 block text-sm font-medium text-gray-700">
           Precio
         </label>
@@ -163,6 +163,20 @@ export default function EditForm({ product }: Props) {
           min="0"
           step="0.01"
           defaultValue={product.price}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+        />
+      </div>
+
+      <div className="mb-6">
+        <label htmlFor="edit-expires-at" className="mb-1 block text-sm font-medium text-gray-700">
+          Fecha de vencimiento <span className="font-normal text-gray-400">(opcional)</span>
+        </label>
+        <input
+          id="edit-expires-at"
+          name="expires_at"
+          type="date"
+          min={new Date().toISOString().split('T')[0]}
+          defaultValue={product.expires_at ? product.expires_at.split('T')[0] : ''}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
         />
       </div>

@@ -64,6 +64,7 @@ export interface Product {
   min_stock: number;
   price: number;
   barcode: string | null;
+  expires_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -106,6 +107,7 @@ export interface ProductInsert {
   min_stock?: number;
   price?: number;
   barcode?: string | null;
+  expires_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

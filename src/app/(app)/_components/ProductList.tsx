@@ -12,6 +12,15 @@ function isLowStock(product: Product): boolean {
   return product.min_stock > 0 && product.current_stock < product.min_stock;
 }
 
+function getExpiryStatus(expiresAt: string | null) {
+  if (!expiresAt) return null;
+  const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
+  if (days < 0) return { label: 'Vencido', color: 'text-red-600 bg-red-50' };
+  if (days <= 3) return { label: `Vence en ${days}d`, color: 'text-orange-600 bg-orange-50' };
+  if (days <= 7) return { label: `Vence en ${days}d`, color: 'text-yellow-600 bg-yellow-50' };
+  return { label: `Vence ${new Date(expiresAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}`, color: 'text-green-600 bg-green-50' };
+}
+
 export default function ProductList({ products }: Props) {
   if (products.length === 0) {
     return (
@@ -37,6 +46,14 @@ export default function ProductList({ products }: Props) {
                 year: 'numeric',
               })}
             </p>
+            {(() => {
+              const expiry = getExpiryStatus(product.expires_at);
+              return expiry ? (
+                <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${expiry.color}`}>
+                  {expiry.label}
+                </span>
+              ) : null;
+            })()}
           </div>
           <div className="flex items-center gap-2">
             <ConsumeButton productId={product.id} currentStock={product.current_stock} />

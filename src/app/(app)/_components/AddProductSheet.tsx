@@ -17,6 +17,7 @@ export default function AddProductSheet() {
   const [brand, setBrand] = useState('');
   const [price, setPrice] = useState(0);
   const [barcode, setBarcode] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [autoSaveCountdown, setAutoSaveCountdown] = useState<number | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -49,6 +50,7 @@ export default function AddProductSheet() {
         setSelectedCategory(null);
         setStock(1);
         setBarcode('');
+        setExpiresAt('');
         router.refresh();
       }
       return result;
@@ -65,6 +67,7 @@ export default function AddProductSheet() {
     setSelectedCategory(null);
     setStock(1);
     setBarcode('');
+    setExpiresAt('');
   }
 
   async function handleBarcodeScanned(scannedBarcode: string) {
@@ -123,6 +126,9 @@ export default function AddProductSheet() {
               )}
               {barcode && (
                 <input type="hidden" name="barcode" value={barcode} />
+              )}
+              {expiresAt && (
+                <input type="hidden" name="expires_at" value={expiresAt} />
               )}
 
               {autoSaveCountdown !== null && (
@@ -220,7 +226,7 @@ export default function AddProductSheet() {
                 </div>
               </div>
 
-              <div className="mb-6">
+              <div className="mb-4">
                 <label htmlFor="product-price" className="mb-1 block text-sm font-medium text-gray-700">
                   Precio <span className="font-normal text-gray-400">(opcional)</span>
                 </label>
@@ -233,6 +239,20 @@ export default function AddProductSheet() {
                   value={price}
                   onChange={(e) => setPrice(Number(e.target.value))}
                   placeholder="0.00"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+                />
+              </div>
+
+              <div className="mb-6">
+                <label htmlFor="product-expires-at" className="mb-1 block text-sm font-medium text-gray-700">
+                  Fecha de vencimiento <span className="font-normal text-gray-400">(opcional)</span>
+                </label>
+                <input
+                  id="product-expires-at"
+                  type="date"
+                  min={new Date().toISOString().split('T')[0]}
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
                 />
               </div>

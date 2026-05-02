@@ -24,6 +24,8 @@ export async function addProductAction(
   const barcode = (formData.get('barcode') as string | null)?.trim() || null;
   const brand = (formData.get('brand') as string | null)?.trim() || null;
   const price = Number(formData.get('price') ?? 0);
+  const expiresAtRaw = (formData.get('expires_at') as string | null)?.trim() || null;
+  const expires_at = expiresAtRaw ? new Date(expiresAtRaw).toISOString() : null;
 
   if (!name) {
     return { error: 'El nombre del producto es obligatorio.' };
@@ -61,6 +63,7 @@ export async function addProductAction(
     min_stock: 0,
     price,
     barcode: barcode || null,
+    expires_at,
   });
 
   if (error) {
@@ -83,6 +86,8 @@ export async function updateProductAction(
   const brand = (formData.get('brand') as string | null)?.trim() || null;
   const unit = (formData.get('unit') as string | null)?.trim() || null;
   const price = Number(formData.get('price') ?? 0);
+  const expiresAtRaw = (formData.get('expires_at') as string | null)?.trim() || null;
+  const expires_at = expiresAtRaw ? new Date(expiresAtRaw).toISOString() : null;
 
   if (!id) {
     return { error: 'ID del producto es obligatorio.' };
@@ -116,7 +121,7 @@ export async function updateProductAction(
 
   const { error } = await supabase
     .from('products')
-    .update({ name, category, current_stock, min_stock, brand, unit, price })
+    .update({ name, category, current_stock, min_stock, brand, unit, price, expires_at })
     .eq('id', id)
     .eq('household_id', membership!.household_id);
 

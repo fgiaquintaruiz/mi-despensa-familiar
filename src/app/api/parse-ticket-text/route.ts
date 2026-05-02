@@ -21,6 +21,8 @@ export const POST = async (req: Request): Promise<NextResponse> => {
 
   const text = (body as { text: string }).text;
 
+  console.log('[parse-ticket-text]', text.substring(0, 200));
+
   const parser = findParser({ text });
 
   if (!parser) {

@@ -65,7 +65,7 @@ function mapCategory(name: string): Category {
  *
  * Example: "PANELA BIO                    1,99 € 3"
  */
-const ITEM_REGEX = /^(.+?)\s{2,}(\d+,\d{2})\s+€\s+\d\s*$/;
+const ITEM_REGEX = /^(.+?)\s{2,}(\d+,\d{2})\s+[€E]\s+\d\s*$/;
 
 function parseEuro(value: string): number {
   return parseFloat(value.replace(',', '.'));
@@ -134,8 +134,8 @@ async function extractTextFromBuffer(buffer: Buffer): Promise<string> {
 export const aldiParser: TicketParser = {
   store: 'Aldi',
   canParse: ({ filename, text }) => {
-    const haystack = `${filename ?? ''} ${text ?? ''}`.toLowerCase();
-    return haystack.includes('aldi');
+    const haystack = `${filename ?? ''} ${text ?? ''}`;
+    return /a\s*l\s*d\s*i/i.test(haystack) || /4ldi/i.test(haystack);
   },
   parse: async ({ buffer }) => {
     const text = await extractTextFromBuffer(buffer);

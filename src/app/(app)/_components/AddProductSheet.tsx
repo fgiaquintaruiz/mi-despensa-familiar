@@ -8,9 +8,16 @@ import { lookupBarcode } from '@/lib/barcode/open-food-facts';
 import { useBarcodeScanner } from '@/lib/barcode/use-barcode-scanner';
 import BarcodeScanner from './BarcodeScanner';
 
-export default function AddProductSheet() {
+interface AddProductSheetProps {
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export default function AddProductSheet({ open: openProp, onClose }: AddProductSheetProps = {}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = isControlled ? openProp : openInternal;
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [stock, setStock] = useState(1);
   const [name, setName] = useState('');
@@ -39,11 +46,19 @@ export default function AddProductSheet() {
     setAutoSaveCountdown(null);
   }
 
+  function closeSheet() {
+    if (isControlled) {
+      onClose?.();
+    } else {
+      setOpenInternal(false);
+    }
+  }
+
   const [state, formAction] = useActionState(
     async (prev: unknown, fd: FormData) => {
       const result = await addProductAction(prev, fd);
       if (!result.error) {
-        setOpen(false);
+        closeSheet();
         setName('');
         setBrand('');
         setPrice(0);
@@ -60,7 +75,7 @@ export default function AddProductSheet() {
 
   function handleClose() {
     cancelCountdown();
-    setOpen(false);
+    closeSheet();
     setName('');
     setBrand('');
     setPrice(0);
@@ -101,14 +116,16 @@ export default function AddProductSheet() {
 
   return (
     <>
-      <button
-        type="button"
-        aria-label="+"
-        onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-brand)] text-2xl font-bold text-white shadow-lg"
-      >
-        +
-      </button>
+      {!isControlled && (
+        <button
+          type="button"
+          aria-label="Agregar producto"
+          onClick={() => setOpenInternal(true)}
+          className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-brand)] text-2xl font-bold text-white shadow-lg"
+        >
+          +
+        </button>
+      )}
 
       {open && (
         <>

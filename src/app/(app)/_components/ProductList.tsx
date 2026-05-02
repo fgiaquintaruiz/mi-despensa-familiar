@@ -59,7 +59,7 @@ export default function ProductList({ products }: Props) {
             <ConsumeButton productId={product.id} currentStock={product.current_stock} />
             <span className="text-sm font-semibold">{product.current_stock}</span>
             {isLowStock(product) && (
-              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-600">
+              <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium leading-none text-orange-600">
                 stock bajo
               </span>
             )}

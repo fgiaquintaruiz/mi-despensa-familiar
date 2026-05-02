@@ -161,4 +161,42 @@ A PAGAR                       2,50 €`;
     // All quantities must be 1, never 3 or any other IVA group digit
     expect(items.every((i) => i.qty === 1)).toBe(true);
   });
+
+  // ---------------------------------------------------------------------------
+  // OCR-noisy input (Tesseract artifacts)
+  // ---------------------------------------------------------------------------
+
+  it('parses correctly when Tesseract uses decimal points instead of commas', async () => {
+    const noisyText = `ALDI SUPERMERCADOS S.L.U.
+
+PANELA BIO                    1.99 € 3
+LECHE ENTERA 1L               0.89 € 1
+
+A PAGAR                       2.88 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: noisyText });
+    expect(items).toHaveLength(2);
+    const panela = items.find((i) => i.name === 'Panela Bio');
+    expect(panela).toBeDefined();
+    expect(panela!.price).toBeCloseTo(1.99);
+    const leche = items.find((i) => i.name === 'Leche Entera 1L');
+    expect(leche).toBeDefined();
+    expect(leche!.price).toBeCloseTo(0.89);
+  });
+
+  it('parses correctly when the IVA group digit is missing (OCR dropout)', async () => {
+    const noisyText = `ALDI SUPERMERCADOS S.L.U.
+
+PASTA ESPIRALES 500G          0,69 €
+DETERGENTE ROPA 3L            4,49 €
+
+A PAGAR                       5,18 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: noisyText });
+    expect(items).toHaveLength(2);
+    const pasta = items.find((i) => i.name === 'Pasta Espirales 500G');
+    expect(pasta).toBeDefined();
+    expect(pasta!.price).toBeCloseTo(0.69);
+    const detergente = items.find((i) => i.name === 'Detergente Ropa 3L');
+    expect(detergente).toBeDefined();
+    expect(detergente!.price).toBeCloseTo(4.49);
+  });
 });

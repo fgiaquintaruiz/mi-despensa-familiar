@@ -60,11 +60,30 @@ function mapCategory(name: string): Category {
  * - NAME: one or more words (letters, digits, accented chars, hyphens)
  * - PRICE: digits,digits (comma decimal separator)
  * - € literal
- * - IVA_GROUP: single digit (tax group — ignored)
+ * - IVA_GROUP: single digit (tax group — ignored, optional for OCR-noisy input)
  *
  * Example: "PANELA BIO                    1,99 € 3"
  */
-const ITEM_REGEX = /^(.+?)\s{2,}(\d+,\d{2})\s+[€E]\s+\d\s*$/;
+const ITEM_REGEX = /^(.+?)\s{2,}(\d+,\d{2})\s+[€E](\s+\d)?\s*$/;
+
+/**
+ * Normalize OCR-noisy text before regex matching.
+ * Handles two common Tesseract artifacts:
+ *  1. Decimal point instead of comma: "1.99" → "1,99"
+ *  2. Garbled € symbol (e, E, ε) → "€" (only when preceded by digit/space)
+ */
+function preprocessText(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => {
+      // Normalize decimal point → comma (only when exactly 2 decimal digits follow)
+      line = line.replace(/(\d)\.(\d{2})(?!\d)/g, '$1,$2');
+      // Normalize garbled € variants preceded by digit/space
+      line = line.replace(/(?<=[\d\s])[eE€ε](?=\s)/g, '€');
+      return line;
+    })
+    .join('\n');
+}
 
 function parseEuro(value: string): number {
   return parseFloat(value.replace(',', '.'));
@@ -131,6 +150,7 @@ export const aldiParser: TicketParser = {
     return /a\s*l\s*d\s*i/i.test(haystack) || /4ldi/i.test(haystack);
   },
   parse: async ({ text = '' }) => {
-    return extractItems(text);
+    const normalized = preprocessText(text);
+    return extractItems(normalized);
   },
 };

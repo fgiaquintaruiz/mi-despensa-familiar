@@ -1,13 +1,13 @@
 'use client';
 
-import { useRef, useState, useEffect, Suspense } from 'react';
+import { useRef, useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import type { Category } from '@/lib/types';
 import { importTicketItemsAction } from '../actions';
 import { useOcr } from '@/lib/ocr/use-ocr';
 
-function AutoTrigger({
+function ModeCTA({
   pdfInputRef,
   photoInputRef,
 }: {
@@ -15,17 +15,29 @@ function AutoTrigger({
   photoInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const searchParams = useSearchParams();
+  const mode = searchParams.get('mode');
 
-  useEffect(() => {
-    const mode = searchParams.get('mode');
-    if (mode === 'photo') {
-      photoInputRef.current?.click();
-    } else if (mode === 'pdf') {
-      pdfInputRef.current?.click();
-    }
-    // Run once on mount only
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  if (mode === 'photo') {
+    return (
+      <button
+        onClick={() => photoInputRef.current?.click()}
+        className="w-full rounded-xl bg-[var(--color-brand)] mb-4 py-4 text-lg font-bold text-white active:opacity-80"
+      >
+        📷 Toca aquí para abrir la cámara
+      </button>
+    );
+  }
+
+  if (mode === 'pdf') {
+    return (
+      <button
+        onClick={() => pdfInputRef.current?.click()}
+        className="w-full rounded-xl bg-[var(--color-brand)] mb-4 py-4 text-lg font-bold text-white active:opacity-80"
+      >
+        📄 Toca aquí para seleccionar el PDF
+      </button>
+    );
+  }
 
   return null;
 }
@@ -216,7 +228,7 @@ export default function ImportTicketPage() {
   return (
     <main className="mx-auto max-w-[480px] px-5 py-8 flex flex-col gap-4">
       <Suspense fallback={null}>
-        <AutoTrigger pdfInputRef={inputRef} photoInputRef={photoRef} />
+        <ModeCTA pdfInputRef={inputRef} photoInputRef={photoRef} />
       </Suspense>
       <button
         onClick={() => router.back()}

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { findParser, getParserByName } from '@/lib/parsers';
 import type { ParsedTicketItem } from '@/lib/parsers/types';
 
+export const runtime = 'nodejs';
+
 export const POST = async (req: Request): Promise<NextResponse> => {
   let body: unknown;
   try {

@@ -41,6 +41,15 @@ interface ItemRow extends TicketItem {
   selected: boolean;
 }
 
+type SupermarketHint = 'mercadona' | 'carrefour' | 'aldi' | 'otro';
+
+const HINT_BUTTONS: { label: string; value: SupermarketHint }[] = [
+  { label: 'Mercadona', value: 'mercadona' },
+  { label: 'Carrefour', value: 'carrefour' },
+  { label: 'Aldi', value: 'aldi' },
+  { label: 'Otro', value: 'otro' },
+];
+
 export default function ImportTicketPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +61,12 @@ export default function ImportTicketPage() {
   const [imported, setImported] = useState<number | null>(null);
   const [noDetection, setNoDetection] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  /** Set when OCR succeeded but no parser matched — triggers the hint selector. */
+  const [showHintSelector, setShowHintSelector] = useState(false);
+  /** 'otro' reveals the manual text area; other values trigger a hint retry. */
+  const [selectedHint, setSelectedHint] = useState<SupermarketHint | null>(null);
+  /** Free-form product lines typed by the user when 'Otro' is selected. */
+  const [manualText, setManualText] = useState('');
   const ocr = useOcr();
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -92,23 +107,70 @@ export default function ImportTicketPage() {
     setNoDetection(false);
     setImported(null);
     setImportError(null);
+    setShowHintSelector(false);
+    setSelectedHint(null);
+    setManualText('');
 
-    const items = await ocr.recognize(file);
+    const { items, error: ocrError } = await ocr.recognize(file);
 
     setAnalyzing(false);
     setAnalyzingSource(null);
 
-    if (ocr.error) {
-      setImportError(ocr.error);
+    if (ocrError) {
+      setImportError(ocrError);
       return;
     }
 
     if (items.length === 0) {
-      setNoDetection(true);
+      // OCR worked but no parser matched — let the user pick the store
+      setShowHintSelector(true);
       return;
     }
 
     setRows((items as TicketItem[]).map((item) => ({ ...item, selected: true })));
+  }
+
+  async function handleHintSelect(hint: SupermarketHint) {
+    setSelectedHint(hint);
+    if (hint === 'otro') return; // shows the manual text area, no API call yet
+
+    setImportError(null);
+    const { items, error } = await ocr.retryWithHint(hint);
+    if (error) {
+      setImportError(error);
+      return;
+    }
+    setShowHintSelector(false);
+    setRows((items as TicketItem[]).map((item) => ({ ...item, selected: true })));
+  }
+
+  async function handleManualSubmit() {
+    if (!manualText.trim()) return;
+    setImportError(null);
+
+    try {
+      const res = await fetch('/api/parse-ticket-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: manualText }),
+      });
+
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+
+      const data = await res.json() as { items?: TicketItem[]; error?: string };
+      const items = data.items ?? [];
+
+      if (items.length === 0) {
+        setImportError('No se encontraron productos en el texto ingresado.');
+        return;
+      }
+
+      setShowHintSelector(false);
+      setSelectedHint(null);
+      setRows(items.map((item) => ({ ...item, selected: true })));
+    } catch {
+      setImportError('Error al procesar el texto. Intentá de nuevo.');
+    }
   }
 
   function toggleRow(index: number) {
@@ -217,6 +279,57 @@ export default function ImportTicketPage() {
         <p className="text-sm text-amber-600">
           No se detectaron productos. ¿El PDF es de Mercadona?
         </p>
+      )}
+
+      {showHintSelector && (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-medium text-amber-800">
+            No se reconoció el supermercado automáticamente. ¿De qué tienda es el ticket?
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {HINT_BUTTONS.map(({ label, value }) => (
+              <button
+                key={value}
+                onClick={() => handleHintSelect(value)}
+                disabled={ocr.isProcessing}
+                className={[
+                  'rounded-lg border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50',
+                  selectedHint === value
+                    ? 'border-[var(--color-brand)] bg-[var(--color-brand)] text-white'
+                    : 'border-[var(--color-brand)] text-[var(--color-brand)] hover:bg-[var(--color-brand)] hover:text-white',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {ocr.isProcessing && (
+            <p className="text-xs text-amber-700">Reintentando con el parser seleccionado...</p>
+          )}
+
+          {selectedHint === 'otro' && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-amber-700">
+                Ingresá las líneas del ticket (una por línea). Formato sugerido: nombre, cantidad, precio.
+              </p>
+              <textarea
+                value={manualText}
+                onChange={(e) => setManualText(e.target.value)}
+                rows={6}
+                placeholder={'Leche entera 1L x2 1.49\nPan de molde x1 1.25\n...'}
+                className="w-full rounded-lg border border-gray-300 p-2 text-sm font-mono focus:border-[var(--color-brand)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand)]"
+              />
+              <button
+                onClick={handleManualSubmit}
+                disabled={!manualText.trim()}
+                className="self-end rounded-lg bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Procesar texto
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {importError && <p className="text-sm text-red-600">{importError}</p>}

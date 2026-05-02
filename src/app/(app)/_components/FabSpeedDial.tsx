@@ -1,38 +1,73 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AddProductSheet from './AddProductSheet';
+
+const SCAN_ICON = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="4" x2="3" y2="20" />
+    <line x1="7" y1="4" x2="7" y2="20" />
+    <line x1="11" y1="4" x2="11" y2="20" />
+    <line x1="15" y1="4" x2="15" y2="20" />
+    <line x1="19" y1="4" x2="19" y2="20" />
+    <line x1="1" y1="8" x2="23" y2="8" />
+    <line x1="1" y1="16" x2="23" y2="16" />
+  </svg>
+);
+
+const PHOTO_ICON = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+    <circle cx="12" cy="13" r="4" />
+  </svg>
+);
+
+const PDF_ICON = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+  </svg>
+);
+
+const ADD_ICON = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
 
 const ACTIONS = [
   {
     id: 'scan',
     label: 'Escanear código',
-    icon: '🔍',
+    icon: SCAN_ICON,
     type: 'navigate' as const,
     href: '/scanner',
   },
   {
     id: 'photo',
     label: 'Foto de ticket',
-    icon: '📷',
+    icon: PHOTO_ICON,
     type: 'navigate' as const,
     href: '/import-ticket?mode=photo',
   },
   {
     id: 'pdf',
     label: 'Subir PDF',
-    icon: '📄',
+    icon: PDF_ICON,
     type: 'navigate' as const,
     href: '/import-ticket?mode=pdf',
   },
   {
     id: 'add',
     label: 'Agregar producto',
-    icon: '➕',
+    icon: ADD_ICON,
     type: 'sheet' as const,
   },
-] as const;
+] satisfies { id: string; label: string; icon: React.ReactNode; type: 'navigate' | 'sheet'; href?: string }[];
 
 export default function FabSpeedDial() {
   const router = useRouter();
@@ -93,7 +128,7 @@ export default function FabSpeedDial() {
                 type="button"
                 aria-label={action.label}
                 onClick={() => handleActionClick(action)}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl shadow-md active:scale-95"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[var(--color-brand)] shadow-md active:scale-95"
               >
                 {action.icon}
               </button>

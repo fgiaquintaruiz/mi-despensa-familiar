@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { findParser } from '@/lib/parsers';
+import { findParser, getParserByName } from '@/lib/parsers';
 import type { ParsedTicketItem } from '@/lib/parsers/types';
 
 export const POST = async (req: Request): Promise<NextResponse> => {
@@ -19,11 +19,20 @@ export const POST = async (req: Request): Promise<NextResponse> => {
     return NextResponse.json({ error: 'text is required and must be a non-empty string' }, { status: 400 });
   }
 
-  const text = (body as { text: string }).text;
+  const { text, hint } = body as { text: string; hint?: unknown };
 
-  console.log('[parse-ticket-text]', text.substring(0, 200));
+  console.log('[parse-ticket-text]', text.substring(0, 200), hint ? `hint=${hint}` : '');
 
-  const parser = findParser({ text });
+  // Validate hint: must be a non-empty string and match a known parser
+  let parser = findParser({ text });
+
+  if (typeof hint === 'string' && hint.trim() !== '') {
+    const hintedParser = getParserByName(hint.trim());
+    if (!hintedParser) {
+      return NextResponse.json({ error: `Unknown hint: "${hint}"` }, { status: 400 });
+    }
+    parser = hintedParser;
+  }
 
   if (!parser) {
     return NextResponse.json(

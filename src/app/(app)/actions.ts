@@ -53,21 +53,29 @@ export async function addProductAction(
     .limit(1)
     .maybeSingle();
 
-  const { error } = await supabase.from('products').insert({
-    household_id: membership!.household_id,
-    name,
-    category,
-    current_stock,
-    brand,
-    unit: null,
-    min_stock: 0,
-    price,
-    barcode: barcode || null,
-    expires_at,
-  });
+  const { data: newProduct, error } = await supabase
+    .from('products')
+    .insert({
+      household_id: membership!.household_id,
+      name,
+      category,
+      current_stock,
+      brand,
+      unit: null,
+      min_stock: 0,
+      price,
+      barcode: barcode || null,
+      expires_at,
+    })
+    .select('id')
+    .single();
 
   if (error) {
     return { error: error.message };
+  }
+
+  if (price > 0 && newProduct) {
+    await supabase.from('price_history').insert({ product_id: newProduct.id, price });
   }
 
   revalidatePath('/');
@@ -119,6 +127,13 @@ export async function updateProductAction(
     .limit(1)
     .maybeSingle();
 
+  const { data: existing } = await supabase
+    .from('products')
+    .select('price')
+    .eq('id', id)
+    .eq('household_id', membership!.household_id)
+    .single();
+
   const { error } = await supabase
     .from('products')
     .update({ name, category, current_stock, min_stock, brand, unit, price, expires_at })
@@ -127,6 +142,10 @@ export async function updateProductAction(
 
   if (error) {
     return { error: error.message };
+  }
+
+  if (existing && price !== existing.price) {
+    await supabase.from('price_history').insert({ product_id: id, price });
   }
 
   revalidatePath('/');

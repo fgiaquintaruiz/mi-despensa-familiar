@@ -3,14 +3,15 @@
 import { useActionState, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CATEGORIES, categoryLabel, type Category } from '@/lib/types';
-import type { Product } from '@/lib/types';
+import type { Product, PriceHistoryEntry } from '@/lib/types';
 import { updateProductAction } from '../../../actions';
 
 interface Props {
   product: Product;
+  priceHistory: PriceHistoryEntry[];
 }
 
-export default function EditForm({ product }: Props) {
+export default function EditForm({ product, priceHistory = [] }: Props) {
   const router = useRouter();
   const [name, setName] = useState(product.name);
   const [selectedCategory, setSelectedCategory] = useState<Category>(product.category);
@@ -31,6 +32,7 @@ export default function EditForm({ product }: Props) {
   const canSubmit = name.trim().length > 0;
 
   return (
+    <>
     <form action={formAction}>
       <input type="hidden" name="id" value={product.id} />
       <input type="hidden" name="current_stock" value={stock} />
@@ -202,5 +204,26 @@ export default function EditForm({ product }: Props) {
         </button>
       </div>
     </form>
+
+    {priceHistory.length >= 2 && (
+      <section className="mt-8">
+        <h2 className="mb-3 text-base font-semibold text-gray-800">Historial de precios</h2>
+        <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
+          {priceHistory.map((entry) => {
+            const date = new Date(entry.recorded_at);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return (
+              <li key={entry.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                <span className="text-gray-500">{`${day}/${month}/${year}`}</span>
+                <span className="font-medium text-gray-800">{`€${entry.price.toFixed(2)}`}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    )}
+    </>
   );
 }

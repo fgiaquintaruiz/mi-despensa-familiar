@@ -78,6 +78,13 @@ export interface ConsumptionLog {
   created_at: string;
 }
 
+export interface PriceHistoryEntry {
+  id: string;
+  product_id: string;
+  price: number;
+  recorded_at: string;
+}
+
 // ------------------------------------------------------------
 // Insert types (what you send on INSERT)
 // Fields with SQL defaults are optional: id, *_at, current_stock, min_stock, price
@@ -121,6 +128,13 @@ export interface ConsumptionLogInsert {
   created_at?: string;
 }
 
+export interface PriceHistoryInsert {
+  id?: string;
+  product_id: string;
+  price: number;
+  recorded_at?: string;
+}
+
 // ------------------------------------------------------------
 // Update types (what you send on UPDATE — all optional, no id)
 // ------------------------------------------------------------
@@ -129,6 +143,7 @@ export type HouseholdUpdate = Partial<Omit<HouseholdInsert, 'id'>>;
 export type HouseholdMemberUpdate = Partial<Omit<HouseholdMemberInsert, 'household_id' | 'user_id'>>;
 export type ProductUpdate = Partial<Omit<ProductInsert, 'id'>>;
 export type ConsumptionLogUpdate = Partial<Omit<ConsumptionLogInsert, 'id'>>;
+export type PriceHistoryUpdate = Partial<Omit<PriceHistoryInsert, 'id'>>;
 
 // ------------------------------------------------------------
 // Database shape — compatible with createClient<Database>()
@@ -142,6 +157,7 @@ export type Database = {
       household_members: { Row: HouseholdMember; Insert: HouseholdMemberInsert; Update: HouseholdMemberUpdate };
       products: { Row: Product; Insert: ProductInsert; Update: ProductUpdate };
       consumption_logs: { Row: ConsumptionLog; Insert: ConsumptionLogInsert; Update: ConsumptionLogUpdate };
+      price_history: { Row: PriceHistoryEntry; Insert: PriceHistoryInsert; Update: PriceHistoryUpdate };
     };
   };
 };

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import type { PriceHistoryEntry } from '@/lib/types';
 import EditForm from './edit-form';
 
 interface Props {
@@ -41,6 +42,13 @@ export default async function EditProductPage({ params }: Props) {
     redirect('/');
   }
 
+  const { data: priceHistory } = await supabase
+    .from('price_history')
+    .select('id, product_id, price, recorded_at')
+    .eq('product_id', id)
+    .order('recorded_at', { ascending: false })
+    .limit(10);
+
   return (
     <div className="max-w-[480px] mx-auto px-5 py-8">
       <div className="mb-6 flex items-center gap-3">
@@ -49,7 +57,7 @@ export default async function EditProductPage({ params }: Props) {
         </Link>
         <h1 className="text-xl font-bold">Editar producto</h1>
       </div>
-      <EditForm product={product} />
+      <EditForm product={product} priceHistory={(priceHistory ?? []) as PriceHistoryEntry[]} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { mercadonaParser } from './mercadona';
 
 const SAMPLE_TEXT = `MERCADONA, S.A.
@@ -9,23 +9,6 @@ Descripción P. Unit Importe
 1 NUGGETS DE POLLO 2,70
 TOTAL (€) 24,75
 TARJETA BANCARIA 24,75`;
-
-const { mockGetText } = vi.hoisted(() => ({
-  mockGetText: vi.fn(),
-}));
-
-vi.mock('pdf-parse', () => {
-  return {
-    PDFParse: function() {
-      return { getText: mockGetText };
-    },
-  };
-});
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  mockGetText.mockResolvedValue({ text: SAMPLE_TEXT });
-});
 
 describe('mercadonaParser.canParse', () => {
   it('returns true when filename contains "mercadona"', () => {
@@ -43,42 +26,42 @@ describe('mercadonaParser.canParse', () => {
 
 describe('mercadonaParser.parse', () => {
   it('extracts 4 items from the sample text', async () => {
-    const items = await mercadonaParser.parse({ buffer: Buffer.from('') });
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items).toHaveLength(4);
   });
 
   it('extracts qty=2 for "PAN H BRIOCHE"', async () => {
-    const items = await mercadonaParser.parse({ buffer: Buffer.from('') });
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const pan = items.find((i) => i.name === 'PAN H BRIOCHE');
     expect(pan?.qty).toBe(2);
   });
 
   it('extracts unit price 1.10 for PAN H BRIOCHE (first price in multi-price line)', async () => {
-    const items = await mercadonaParser.parse({ buffer: Buffer.from('') });
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const pan = items.find((i) => i.name === 'PAN H BRIOCHE');
     expect(pan?.price).toBeCloseTo(1.1);
   });
 
   it('extracts price 3.90 for CEBOLLA 2 KG (single-unit item)', async () => {
-    const items = await mercadonaParser.parse({ buffer: Buffer.from('') });
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const cebolla = items.find((i) => i.name === 'CEBOLLA 2 KG');
     expect(cebolla?.price).toBeCloseTo(3.9);
   });
 
   it('maps "CEBOLLA" to category "frescos"', async () => {
-    const items = await mercadonaParser.parse({ buffer: Buffer.from('') });
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const cebolla = items.find((i) => i.name === 'CEBOLLA 2 KG');
     expect(cebolla?.category).toBe('frescos');
   });
 
   it('maps "NUGGETS DE POLLO" to category "frescos"', async () => {
-    const items = await mercadonaParser.parse({ buffer: Buffer.from('') });
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const nuggets = items.find((i) => i.name === 'NUGGETS DE POLLO');
     expect(nuggets?.category).toBe('frescos');
   });
 
   it('does not include the TOTAL line as an item', async () => {
-    const items = await mercadonaParser.parse({ buffer: Buffer.from('') });
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items.every((i) => !i.name.includes('TOTAL'))).toBe(true);
   });
 
@@ -87,8 +70,7 @@ describe('mercadonaParser.parse', () => {
 Descripción P. Unit Importe
 1 GALLETA RELIEVE 1,35
 TOTAL (€) 1,35`;
-    mockGetText.mockResolvedValueOnce({ text: gallettaText, pages: [] });
-    const items = await mercadonaParser.parse({ buffer: Buffer.from('') });
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: gallettaText });
     const galleta = items.find((i) => i.name === 'GALLETA RELIEVE');
     expect(galleta?.category).toBe('despensa');
   });

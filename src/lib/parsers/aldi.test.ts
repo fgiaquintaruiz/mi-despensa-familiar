@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { aldiParser } from './aldi';
 
 /**
@@ -29,23 +29,6 @@ IVA%   BASE IMP.   CUOTA IVA   TOTAL
 
 GRACIAS POR TU COMPRA`;
 
-const { mockGetText } = vi.hoisted(() => ({
-  mockGetText: vi.fn(),
-}));
-
-vi.mock('pdf-parse', () => {
-  return {
-    PDFParse: function () {
-      return { getText: mockGetText };
-    },
-  };
-});
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  mockGetText.mockResolvedValue({ text: SAMPLE_TEXT });
-});
-
 // ---------------------------------------------------------------------------
 // canParse
 // ---------------------------------------------------------------------------
@@ -70,36 +53,36 @@ describe('aldiParser.canParse', () => {
 
 describe('aldiParser.parse', () => {
   it('extracts exactly 5 product items from the sample ticket', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items).toHaveLength(5);
   });
 
   it('parses a simple product name and price correctly', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const panela = items.find((i) => i.name === 'Panela Bio');
     expect(panela).toBeDefined();
     expect(panela!.price).toBeCloseTo(1.99);
   });
 
   it('parses a multi-word product name correctly', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const leche = items.find((i) => i.name === 'Leche Entera 1L');
     expect(leche).toBeDefined();
     expect(leche!.price).toBeCloseTo(0.89);
   });
 
   it('sets qty=1 for every item (Aldi tickets have no qty column)', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items.every((i) => i.qty === 1)).toBe(true);
   });
 
   it('sets unit="ud" for every item', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items.every((i) => i.unit === 'ud')).toBe(true);
   });
 
   it('uses Title Case for product names', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     // Every word should start with uppercase
     for (const item of items) {
       const words = item.name.split(' ');
@@ -114,25 +97,25 @@ describe('aldiParser.parse', () => {
   // ---------------------------------------------------------------------------
 
   it('maps LECHE ENTERA to category "frescos"', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const leche = items.find((i) => i.name === 'Leche Entera 1L');
     expect(leche!.category).toBe('frescos');
   });
 
   it('maps DETERGENTE ROPA to category "limpieza"', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const detergente = items.find((i) => i.name === 'Detergente Ropa 3L');
     expect(detergente!.category).toBe('limpieza');
   });
 
   it('maps GEL DUCHA to category "higiene"', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const gel = items.find((i) => i.name === 'Gel Ducha 750Ml');
     expect(gel!.category).toBe('higiene');
   });
 
   it('maps PASTA ESPIRALES to category "despensa"', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const pasta = items.find((i) => i.name === 'Pasta Espirales 500G');
     expect(pasta!.category).toBe('despensa');
   });
@@ -142,19 +125,19 @@ describe('aldiParser.parse', () => {
   // ---------------------------------------------------------------------------
 
   it('skips the "A PAGAR" total line', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items.every((i) => !i.name.toUpperCase().includes('PAGAR'))).toBe(true);
   });
 
   it('skips IVA table lines', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items.every((i) => !i.name.toUpperCase().includes('IVA'))).toBe(true);
     expect(items.every((i) => !i.name.toUpperCase().includes('BASE'))).toBe(true);
     expect(items.every((i) => !i.name.toUpperCase().includes('CUOTA'))).toBe(true);
   });
 
   it('skips footer lines (OPERACION CONTACTLESS, GRACIAS POR TU COMPRA)', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items.every((i) => !i.name.toUpperCase().includes('CONTACTLESS'))).toBe(true);
     expect(items.every((i) => !i.name.toUpperCase().includes('GRACIAS'))).toBe(true);
   });
@@ -167,15 +150,14 @@ describe('aldiParser.parse', () => {
     const unknownText = `ALDI SUPERMERCADOS S.L.U.
 PRODUCTO MISTERIOSO XYZ       2,50 € 3
 A PAGAR                       2,50 €`;
-    mockGetText.mockResolvedValueOnce({ text: unknownText });
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: unknownText });
     const xyz = items.find((i) => i.name === 'Producto Misterioso Xyz');
     expect(xyz).toBeDefined();
     expect(xyz!.category).toBe('despensa');
   });
 
   it('ignores the IVA group digit at end of line — does not treat it as quantity', async () => {
-    const items = await aldiParser.parse({ buffer: Buffer.from('') });
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     // All quantities must be 1, never 3 or any other IVA group digit
     expect(items.every((i) => i.qty === 1)).toBe(true);
   });

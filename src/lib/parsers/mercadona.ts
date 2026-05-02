@@ -1,4 +1,3 @@
-import { PDFParse } from 'pdf-parse';
 import type { TicketParser, ParsedTicketItem } from './types';
 import type { Category } from '@/lib/types';
 
@@ -65,20 +64,13 @@ function extractItems(text: string): ParsedTicketItem[] {
   return items;
 }
 
-async function extractTextFromBuffer(buffer: Buffer): Promise<string> {
-  const parser = new PDFParse({ data: buffer });
-  const result = await parser.getText();
-  return result.text ?? '';
-}
-
 export const mercadonaParser: TicketParser = {
   store: 'Mercadona',
   canParse: ({ filename, text }) => {
     const haystack = `${filename ?? ''} ${text ?? ''}`.toLowerCase();
     return haystack.includes('mercadona');
   },
-  parse: async ({ buffer }) => {
-    const text = await extractTextFromBuffer(buffer);
+  parse: async ({ text = '' }) => {
     return extractItems(text);
   },
 };

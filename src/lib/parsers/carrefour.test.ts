@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { carrefourParser } from './carrefour';
 
 /**
@@ -28,23 +28,6 @@ P L A T A N O 1 , 9 9
 8 A R T . T O T A L A P A G A R : 1 9 , 7 5
 = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =`;
 
-const { mockGetText } = vi.hoisted(() => ({
-  mockGetText: vi.fn(),
-}));
-
-vi.mock('pdf-parse', () => {
-  return {
-    PDFParse: function () {
-      return { getText: mockGetText };
-    },
-  };
-});
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  mockGetText.mockResolvedValue({ text: SAMPLE_TEXT });
-});
-
 // ---------------------------------------------------------------------------
 // canParse
 // ---------------------------------------------------------------------------
@@ -69,12 +52,12 @@ describe('carrefourParser.canParse', () => {
 
 describe('carrefourParser.parse', () => {
   it('extracts 8 product items from the sample ticket', async () => {
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items).toHaveLength(8);
   });
 
   it('parses COCACOLAZERO2L with price 2.10', async () => {
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     // Characters are collapsed: "C O C A C O L A Z E R O 2 L" → "COCACOLAZERO2L"
     const cola = items.find((i) => i.name === 'COCACOLAZERO2L');
     expect(cola).toBeDefined();
@@ -82,37 +65,37 @@ describe('carrefourParser.parse', () => {
   });
 
   it('parses PLATANO with price 1.99', async () => {
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const platano = items.find((i) => i.name === 'PLATANO');
     expect(platano).toBeDefined();
     expect(platano!.price).toBeCloseTo(1.99);
   });
 
   it('sets qty=1 for every item (Carrefour tickets have no qty column)', async () => {
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items.every((i) => i.qty === 1)).toBe(true);
   });
 
   it('maps PLATANO to category "frescos"', async () => {
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const platano = items.find((i) => i.name === 'PLATANO');
     expect(platano!.category).toBe('frescos');
   });
 
   it('maps LIMPIACRISTALES1L to category "limpieza"', async () => {
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const cristal = items.find((i) => i.name === 'LIMPIACRISTALES1L');
     expect(cristal!.category).toBe('limpieza');
   });
 
   it('maps CREMABAÑOSFLORAL5909 to category "higiene"', async () => {
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const crema = items.find((i) => i.name === 'CREMABAÑOSFLORAL5909');
     expect(crema!.category).toBe('higiene');
   });
 
   it('maps MIELCARREFOUR1K to category "despensa"', async () => {
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     const miel = items.find((i) => i.name === 'MIELCARREFOUR1K');
     expect(miel!.category).toBe('despensa');
   });
@@ -122,24 +105,22 @@ describe('carrefourParser.parse', () => {
   // ---------------------------------------------------------------------------
 
   it('does not include the TOTAL APAGAR line as an item', async () => {
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items.every((i) => !i.name.toUpperCase().includes('TOTAL'))).toBe(true);
     expect(items.every((i) => !i.name.toUpperCase().includes('APAGAR'))).toBe(true);
   });
 
   it('does not include separator lines (=== ...) as items', async () => {
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
     expect(items.every((i) => !/^[=\s]+$/.test(i.name))).toBe(true);
   });
 
   it('falls back to "despensa" for unrecognised product names', async () => {
-    // Construct a minimal ticket with a single unknown product in raw Carrefour format
     const unknownText = `***Centros Comerciales Carrefour S.A***
 P R O D U C T O X Y Z 2 , 5 0
 = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 1 A R T . T O T A L A P A G A R : 2 , 5 0`;
-    mockGetText.mockResolvedValueOnce({ text: unknownText });
-    const items = await carrefourParser.parse({ buffer: Buffer.from('') });
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: unknownText });
     const xyz = items.find((i) => i.name === 'PRODUCTOXYZ');
     expect(xyz).toBeDefined();
     expect(xyz!.category).toBe('despensa');

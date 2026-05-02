@@ -1,4 +1,3 @@
-import { PDFParse } from 'pdf-parse';
 import type { TicketParser, ParsedTicketItem } from './types';
 import type { Category } from '@/lib/types';
 
@@ -120,20 +119,13 @@ function extractItems(rawText: string): ParsedTicketItem[] {
   return items;
 }
 
-async function extractTextFromBuffer(buffer: Buffer): Promise<string> {
-  const parser = new PDFParse({ data: buffer });
-  const result = await parser.getText();
-  return result.text ?? '';
-}
-
 export const carrefourParser: TicketParser = {
   store: 'Carrefour',
   canParse: ({ filename, text }) => {
     const haystack = `${filename ?? ''} ${text ?? ''}`.toLowerCase();
     return haystack.includes('carrefour');
   },
-  parse: async ({ buffer }) => {
-    const text = await extractTextFromBuffer(buffer);
+  parse: async ({ text = '' }) => {
     return extractItems(text);
   },
 };

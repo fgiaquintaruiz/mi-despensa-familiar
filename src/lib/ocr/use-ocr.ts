@@ -15,42 +15,10 @@ interface OcrActions {
   reset: () => void;
 }
 
-// Price pattern: one or more digits, optional comma/dot separator, exactly 2 decimal digits
-// Anchored to end of string to avoid matching partial numbers mid-name
-const PRICE_RE = /(\d+[.,]\d{2})\s*€?\s*$/;
-
-function parseOcrText(text: string): ParsedTicketItem[] {
-  const items: ParsedTicketItem[] = [];
-
-  for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (!line) continue;
-
-    const match = line.match(PRICE_RE);
-    if (!match) continue;
-
-    const priceStr = match[1].replace(',', '.');
-    const price = parseFloat(priceStr);
-    if (isNaN(price) || price <= 0) continue;
-
-    // Everything before the price match is the product name
-    const nameRaw = line.slice(0, line.length - match[0].length).trim();
-    // Skip lines that are obviously totals/headers (very short or all caps labels)
-    if (!nameRaw || nameRaw.length < 2) continue;
-    const upperRatio = (nameRaw.match(/[A-Z]/g) ?? []).length / nameRaw.length;
-    // Skip lines like "TOTAL", "IVA", "SUBTOTAL" (all caps, short)
-    if (upperRatio > 0.8 && nameRaw.length < 12) continue;
-
-    items.push({
-      name: nameRaw,
-      qty: 1,
-      unit: 'ud',
-      price,
-      category: 'despensa',
-    });
-  }
-
-  return items;
+interface ParseTicketTextResponse {
+  items: ParsedTicketItem[];
+  parser: string | null;
+  message?: string;
 }
 
 export function useOcr(): OcrResult & OcrActions {
@@ -80,7 +48,30 @@ export function useOcr(): OcrResult & OcrActions {
       const { data } = await worker.recognize(file);
       await worker.terminate();
 
-      const parsed = parseOcrText(data.text);
+      let parsed: ParsedTicketItem[] = [];
+
+      try {
+        const res = await fetch('/api/parse-ticket-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: data.text }),
+        });
+
+        if (!res.ok) {
+          throw new Error(`API error ${res.status}`);
+        }
+
+        const result = (await res.json()) as ParseTicketTextResponse;
+        parsed = result.items ?? [];
+
+        if (parsed.length === 0) {
+          setError('No se reconoció el supermercado. Probá importar el PDF.');
+        }
+      } catch {
+        setError('No se reconoció el supermercado. Probá importar el PDF.');
+        return [];
+      }
+
       setItems(parsed);
       return parsed;
     } catch (err) {

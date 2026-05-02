@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import type { Product } from '@/lib/types';
 import DashboardStats from './_components/DashboardStats';
-import ProductList from './_components/ProductList';
+import ProductFilters from './_components/ProductFilters';
 import AddProductSheet from './_components/AddProductSheet';
 import LogoutButton from './_components/LogoutButton';
 import NotificationPermission from '@/components/NotificationPermission';
@@ -41,6 +41,12 @@ export default async function Home() {
           <h1 className="text-3xl font-extrabold text-[var(--color-brand)]">Mi Despensa</h1>
           <div className="flex items-center gap-2">
             <Link
+              href="/stats"
+              className="rounded-lg border border-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-[var(--color-brand)]"
+            >
+              Stats
+            </Link>
+            <Link
               href="/shopping-list"
               className="rounded-lg border border-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-[var(--color-brand)]"
             >
@@ -57,7 +63,7 @@ export default async function Home() {
           </div>
         </div>
         <DashboardStats total={total} lowStock={lowStock} categories={categories} />
-        <ProductList products={list} />
+        <ProductFilters products={list} />
       </main>
       <AddProductSheet />
     </>

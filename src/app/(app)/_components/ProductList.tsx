@@ -29,6 +29,14 @@ export default function ProductList({ products }: Props) {
           <div>
             <p className="font-medium">{product.name}</p>
             <p className="text-xs text-gray-500">{categoryLabel(product.category)}</p>
+            <p className="text-xs text-gray-400">
+              Agregado el{' '}
+              {new Date(product.created_at).toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+              })}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <ConsumeButton productId={product.id} currentStock={product.current_stock} />

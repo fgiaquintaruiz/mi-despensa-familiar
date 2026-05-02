@@ -77,11 +77,11 @@ export default function ProductFilters({ products }: Props) {
       </div>
 
       {/* Category chips */}
-      <div className="mb-1 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+      <div className="mb-1 flex flex-wrap gap-2 pb-1">
         <button
           type="button"
           onClick={() => setActiveCategory('all')}
-          className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+          className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
             activeCategory === 'all'
               ? 'bg-[var(--color-brand)] text-white'
               : 'bg-white text-gray-600 shadow-sm'
@@ -94,7 +94,7 @@ export default function ProductFilters({ products }: Props) {
             key={cat.key}
             type="button"
             onClick={() => setActiveCategory(cat.key as Category)}
-            className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
               activeCategory === cat.key
                 ? 'bg-[var(--color-brand)] text-white'
                 : 'bg-white text-gray-600 shadow-sm'

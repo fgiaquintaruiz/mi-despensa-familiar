@@ -1,10 +1,34 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import type { Category } from '@/lib/types';
 import { importTicketItemsAction } from '../actions';
 import { useOcr } from '@/lib/ocr/use-ocr';
+
+function AutoTrigger({
+  pdfInputRef,
+  photoInputRef,
+}: {
+  pdfInputRef: React.RefObject<HTMLInputElement | null>;
+  photoInputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (mode === 'photo') {
+      photoInputRef.current?.click();
+    } else if (mode === 'pdf') {
+      pdfInputRef.current?.click();
+    }
+    // Run once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return null;
+}
 
 interface TicketItem {
   name: string;
@@ -129,6 +153,9 @@ export default function ImportTicketPage() {
 
   return (
     <main className="mx-auto max-w-[480px] px-5 py-8 flex flex-col gap-4">
+      <Suspense fallback={null}>
+        <AutoTrigger pdfInputRef={inputRef} photoInputRef={photoRef} />
+      </Suspense>
       <h1 className="text-2xl font-extrabold text-[var(--color-brand)]">Importar ticket</h1>
 
       <div className="flex gap-3">

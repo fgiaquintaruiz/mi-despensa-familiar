@@ -100,7 +100,7 @@ export default function NotificationPermission() {
           <path d="M18 8a6 6 0 0 0-9.33-5" />
           <line x1="1" y1="1" x2="23" y2="23" />
         </svg>
-        <span>{loading ? 'Desactivando...' : 'Notificaciones activas'}</span>
+        <span>{loading ? 'Desactivando...' : 'Notificaciones'}</span>
       </button>
     );
   }

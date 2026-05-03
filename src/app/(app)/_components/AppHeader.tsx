@@ -65,7 +65,7 @@ export default function AppHeader() {
       {open && (
         <div
           id="mobile-menu"
-          className="absolute left-0 right-0 top-[72px] z-50 border-b border-[var(--color-brand)]/20 bg-white px-5 py-3 shadow-lg md:hidden"
+          className="absolute right-0 top-[72px] z-50 w-fit min-w-max border border-[var(--color-brand)]/20 rounded-xl bg-white px-5 py-3 shadow-lg md:hidden"
         >
           <nav className="flex flex-col gap-1">
             <NavLinks onClick={() => setOpen(false)} />

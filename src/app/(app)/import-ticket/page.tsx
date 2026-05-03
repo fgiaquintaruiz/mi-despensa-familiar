@@ -160,6 +160,12 @@ export default function ImportTicketPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // If it's an image, delegate to the photo/OCR handler.
+    if (file.type.startsWith('image/')) {
+      await handlePhotoChange(e);
+      return;
+    }
+
     setAnalyzing(true);
     setAnalyzingSource('pdf');
     setRows([]);
@@ -356,11 +362,11 @@ export default function ImportTicketPage() {
 
       <div className="flex gap-3">
         <label className="flex-1 cursor-pointer rounded-lg border-2 border-dashed border-[var(--color-brand)] px-4 py-6 text-center font-semibold text-[var(--color-brand)]">
-          Subir PDF
+          Subir archivo
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf"
+            accept="application/pdf,image/*"
             className="sr-only"
             onChange={handleFileChange}
           />

@@ -126,3 +126,84 @@ P R O D U C T O X Y Z 2 , 5 0
     expect(xyz!.category).toBe('despensa');
   });
 });
+
+// ---------------------------------------------------------------------------
+// OCR plain-text format — Carrefour Alameda 02/05/2026
+//
+// The OCR from the JPEG ticket has a known quirk: the price printed on
+// line N actually belongs to the product whose name appears on line N+1.
+// Structure:
+//   (blank / standalone price line)  →  price of product A
+//   <name of A>   <price of B>       →  name of A  +  price of B
+//   <name of B>                      →  name of B (price already captured)
+// ---------------------------------------------------------------------------
+
+const OCR_TICKET_ALAMEDA = `***Centros Comerciales Carrefour S.A***
+Alameda
+LLEGA
+MI DÍA DE
+EL CLUB
+CIF: A28425270
+Telf. Directo Tienda 675095218
+Teléfono Atención al Cliente 914908900
+*******************************
+                                    31,50
+ACEITE DE OLIVA                      2,99
+MINI MAGDALENA
+===========================================
+2 ART. TOTAL A PAGAR :              34,49
+===========================================
+
+VENTAJAS OBTENIDAS:
+ACUMULADO CLUB:                      0,35
+TOTAL VENTAJAS EN ESTA COMPRA:       0,35
+
+TIPO      BASE       CUOTA
+4,00%    30,29       1,21
+10,00%    2,72       0,27
+===========================================
+VENTA                               34,49`;
+
+describe('carrefourParser.parse — OCR plain-text format (Alameda 02/05/2026)', () => {
+  it('extracts exactly 2 product items', async () => {
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: OCR_TICKET_ALAMEDA });
+    expect(items).toHaveLength(2);
+  });
+
+  it('parses ACEITE DE OLIVA with price 31.50', async () => {
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: OCR_TICKET_ALAMEDA });
+    const aceite = items.find((i) => i.name === 'ACEITE DE OLIVA');
+    expect(aceite).toBeDefined();
+    expect(aceite!.price).toBeCloseTo(31.5);
+  });
+
+  it('parses MINI MAGDALENA with price 2.99', async () => {
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: OCR_TICKET_ALAMEDA });
+    const magdalena = items.find((i) => i.name === 'MINI MAGDALENA');
+    expect(magdalena).toBeDefined();
+    expect(magdalena!.price).toBeCloseTo(2.99);
+  });
+
+  it('maps ACEITE DE OLIVA to category "despensa"', async () => {
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: OCR_TICKET_ALAMEDA });
+    const aceite = items.find((i) => i.name === 'ACEITE DE OLIVA');
+    expect(aceite!.category).toBe('despensa');
+  });
+
+  it('maps MINI MAGDALENA to category "despensa"', async () => {
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: OCR_TICKET_ALAMEDA });
+    const magdalena = items.find((i) => i.name === 'MINI MAGDALENA');
+    expect(magdalena!.category).toBe('despensa');
+  });
+
+  it('does not include TOTAL, VENTA, VENTAJA, or ACUMULADO as items', async () => {
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: OCR_TICKET_ALAMEDA });
+    const forbidden = /TOTAL|VENTA|VENTAJA|ACUMULADO/i;
+    expect(items.every((i) => !forbidden.test(i.name))).toBe(true);
+  });
+
+  it('sets qty=1 for all items', async () => {
+    const items = await carrefourParser.parse({ buffer: Buffer.from(''), text: OCR_TICKET_ALAMEDA });
+    expect(items.every((i) => i.qty === 1)).toBe(true);
+  });
+});

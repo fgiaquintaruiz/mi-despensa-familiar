@@ -8,33 +8,20 @@ import { importTicketItemsAction } from '../actions';
 import { useOcr } from '@/lib/ocr/use-ocr';
 
 function ModeCTA({
-  pdfInputRef,
-  photoInputRef,
+  inputRef,
 }: {
-  pdfInputRef: React.RefObject<HTMLInputElement | null>;
-  photoInputRef: React.RefObject<HTMLInputElement | null>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const searchParams = useSearchParams();
   const mode = searchParams.get('mode');
 
-  if (mode === 'photo') {
+  if (mode === 'photo' || mode === 'pdf') {
     return (
       <button
-        onClick={() => photoInputRef.current?.click()}
+        onClick={() => inputRef.current?.click()}
         className="w-full rounded-xl bg-[var(--color-brand)] mb-4 py-4 text-lg font-bold text-white active:opacity-80"
       >
-        📷 Toca aquí para abrir la cámara
-      </button>
-    );
-  }
-
-  if (mode === 'pdf') {
-    return (
-      <button
-        onClick={() => pdfInputRef.current?.click()}
-        className="w-full rounded-xl bg-[var(--color-brand)] mb-4 py-4 text-lg font-bold text-white active:opacity-80"
-      >
-        📄 Toca aquí para seleccionar el PDF
+        {mode === 'photo' ? '📷 Toca aquí para abrir la cámara' : '📎 Toca aquí para adjuntar el ticket'}
       </button>
     );
   }
@@ -67,7 +54,6 @@ const COUNTDOWN_START = 3;
 export default function ImportTicketPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const photoRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<ItemRow[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzingSource, setAnalyzingSource] = useState<'pdf' | 'photo' | null>(null);
@@ -160,12 +146,17 @@ export default function ImportTicketPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // If it's an image, delegate to the photo/OCR handler.
+    // Auto-detect by MIME type: delegate to the appropriate handler.
     if (file.type.startsWith('image/')) {
-      await handlePhotoChange(e);
-      return;
+      await handleImageFile(file);
+    } else {
+      await handlePdfFile(file);
     }
 
+    e.target.value = '';
+  }
+
+  async function handlePdfFile(file: File) {
     setAnalyzing(true);
     setAnalyzingSource('pdf');
     setRows([]);
@@ -191,16 +182,12 @@ export default function ImportTicketPage() {
       return;
     }
 
-    // PDF path does not auto-detect store — treat as manual (no countdown).
     const newRows = (data.items as TicketItem[]).map((item) => ({ ...item, selected: true }));
     setRows(newRows);
     setAutoDetected(false);
   }
 
-  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  async function handleImageFile(file: File) {
     setAnalyzing(true);
     setAnalyzingSource('photo');
     setRows([]);
@@ -226,7 +213,26 @@ export default function ImportTicketPage() {
     }
 
     if (items.length === 0) {
-      // OCR worked but no parser matched — let the user pick the store
+      if (detectedSupermarket) {
+        setAnalyzing(true);
+        setAnalyzingSource('photo');
+        const { items: retryItems, error: retryError } = await ocr.retryWithHint(detectedSupermarket);
+        setAnalyzing(false);
+        setAnalyzingSource(null);
+
+        if (retryError || retryItems.length === 0) {
+          setShowHintSelector(true);
+          return;
+        }
+
+        const newRows = (retryItems as TicketItem[]).map((item) => ({ ...item, selected: true }));
+        setRows(newRows);
+        setAutoDetected(true);
+        setDetectedStore(detectedSupermarket);
+        startCountdown();
+        return;
+      }
+
       setShowHintSelector(true);
       return;
     }
@@ -234,8 +240,6 @@ export default function ImportTicketPage() {
     const newRows = (items as TicketItem[]).map((item) => ({ ...item, selected: true }));
     setRows(newRows);
 
-    // Auto-detection: ocr.recognize returns detectedSupermarket when it matched
-    // without a hint. Only activate countdown in that case.
     if (detectedSupermarket) {
       setAutoDetected(true);
       setDetectedStore(detectedSupermarket);
@@ -347,7 +351,7 @@ export default function ImportTicketPage() {
   return (
     <main className="mx-auto max-w-[480px] px-5 py-8 flex flex-col gap-4">
       <Suspense fallback={null}>
-        <ModeCTA pdfInputRef={inputRef} photoInputRef={photoRef} />
+        <ModeCTA inputRef={inputRef} />
       </Suspense>
       <button
         onClick={() => router.back()}
@@ -360,50 +364,27 @@ export default function ImportTicketPage() {
       </button>
       <h1 className="text-2xl font-extrabold text-[var(--color-brand)]">Importar ticket</h1>
 
-      <div className="flex gap-3">
-        <label className="flex-1 cursor-pointer rounded-lg border-2 border-dashed border-[var(--color-brand)] px-4 py-6 text-center font-semibold text-[var(--color-brand)]">
-          Subir archivo
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,image/*"
-            className="sr-only"
-            onChange={handleFileChange}
-          />
-        </label>
-
-        <label className="flex-1 cursor-pointer rounded-lg border-2 border-dashed border-[var(--color-brand)] px-4 py-6 text-center font-semibold text-[var(--color-brand)] flex flex-col items-center justify-center gap-1">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 9a2 2 0 012-2h.172a2 2 0 001.414-.586l.828-.828A2 2 0 0110.172 5h3.656a2 2 0 011.414.586l.828.828A2 2 0 0017.828 7H18a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-          </svg>
-          Foto de ticket
-          <input
-            ref={photoRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="sr-only"
-            onChange={handlePhotoChange}
-          />
-        </label>
-      </div>
+      <label className="cursor-pointer rounded-lg border-2 border-dashed border-[var(--color-brand)] px-4 py-6 text-center font-semibold text-[var(--color-brand)] flex flex-col items-center justify-center gap-2">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden="true"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+        </svg>
+        Adjuntar ticket (PDF o imagen)
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,image/*"
+          className="sr-only"
+          onChange={handleFileChange}
+        />
+      </label>
 
       {analyzing && (
         <p className="text-sm text-gray-500">

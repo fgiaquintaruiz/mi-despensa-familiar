@@ -455,6 +455,17 @@ export default function ImportTicketPage() {
 
       {importError && <p className="text-sm text-red-600">{importError}</p>}
 
+      {ocr.rawText && rows.length === 0 && (showHintSelector || importError) && (
+        <details className="mt-4 rounded-lg border border-gray-300 bg-gray-50 p-3">
+          <summary className="cursor-pointer text-sm font-medium text-gray-700">
+            Ver texto OCR (debug)
+          </summary>
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-xs text-gray-600">
+            {ocr.rawText}
+          </pre>
+        </details>
+      )}
+
       {rows.length > 0 && (
         <>
           {/* Countdown banner — only when autoDetected and countdown is active */}

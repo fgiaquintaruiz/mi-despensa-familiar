@@ -52,6 +52,7 @@ export function useOcr(): OcrResult & OcrActions {
       });
 
       const { data } = await worker.recognize(file);
+      console.log('[OCR raw text]:', data.text);
       await worker.terminate();
 
       // Always store raw text so the page can offer a hint-based retry

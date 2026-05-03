@@ -82,8 +82,7 @@ export function useOcr(): OcrResult & OcrActions {
       }
 
       if (parsed.length === 0) {
-        // Return rawText without setting error — the page decides what to show
-        return { items: [], rawText: data.text, error: null, detectedSupermarket: null };
+        return { items: [], rawText: data.text, error: null, detectedSupermarket };
       }
 
       setItems(parsed);

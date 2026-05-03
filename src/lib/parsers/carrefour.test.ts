@@ -207,3 +207,82 @@ describe('carrefourParser.parse — OCR plain-text format (Alameda 02/05/2026)',
     expect(items.every((i) => i.qty === 1)).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// OCR plain-text format — REAL Tesseract output (noisy)
+//
+// This is the EXACT raw text Tesseract produces from the JPEG photo of a
+// Carrefour Alameda ticket.  The standalone-price line is preceded by garbage
+// characters (e.g. "EEN IARIÓN XENA ANNANRAAA 31,50") because Tesseract
+// hallucinates artefacts in the empty area.  The parser must:
+//   1. Recognise "EEN IARIÓN XENA ANNANRAAA 31,50" as carrying price 31,50
+//      (the noise is the hallucinated "name" of the line, and the trailing
+//      decimal is the actual price).
+//   2. Pair 31,50 with the next plausible product name → ACEITE DE OLIVA.
+//   3. Pair 2,99 with MINI MAGDALENA (OCR'd as "MINT MAGDALENA").
+//   4. Reject any number that lives in the totals / VAT block.
+// ---------------------------------------------------------------------------
+
+const OCR_TICKET_ALAMEDA_REAL = `xxxCentros Comerciales Carrefour S.Axx*
+Alameda
+LLEGA —
+EXE |
+dal
++ CIF: A28425270 95218
+DS € irecto Tienda 675093 89
+E ai al Cliente 914307200
+d a EEN IARIÓN XENA ANNANRAAA 31,50
+ACEITE DE OLIVA 2,99
+MINT MAGDALENA
+-=2238 E A
+2 ART. TOTAL A PAGAR : —— 94,49
+TZ 4
+VENTAJAS OBTENIDAS: he
+ACUMULADO CLUB: 0.39
+TOTAL VENTAJAS EN ESTA COMPRA: DT
+TIPO BASE CUOTA
+4,00% 30,29 1,21
+10,00% Z, e 0,27
+VENTA. 34,49`;
+
+describe('carrefourParser.parse — REAL Tesseract OCR (noisy)', () => {
+  it('extracts ACEITE DE OLIVA at 31,50 despite leading noise on the price line', async () => {
+    const items = await carrefourParser.parse({
+      buffer: Buffer.from(''),
+      text: OCR_TICKET_ALAMEDA_REAL,
+    });
+    const aceite = items.find((i) => i.name === 'ACEITE DE OLIVA');
+    expect(aceite).toBeDefined();
+    expect(aceite!.price).toBeCloseTo(31.5);
+  });
+
+  it('extracts a magdalena item at 2,99 (OCR-corrupted name kept verbatim)', async () => {
+    const items = await carrefourParser.parse({
+      buffer: Buffer.from(''),
+      text: OCR_TICKET_ALAMEDA_REAL,
+    });
+    const magdalena = items.find((i) => i.name.includes('MAGDALENA'));
+    expect(magdalena).toBeDefined();
+    expect(magdalena!.price).toBeCloseTo(2.99);
+  });
+
+  it('does NOT extract footer / VAT / totals values as items', async () => {
+    const items = await carrefourParser.parse({
+      buffer: Buffer.from(''),
+      text: OCR_TICKET_ALAMEDA_REAL,
+    });
+    const forbiddenPrices = [94.49, 30.29, 2.72, 1.21, 0.27, 34.49];
+    for (const p of forbiddenPrices) {
+      expect(items.find((i) => Math.abs(i.price - p) < 0.005)).toBeUndefined();
+    }
+  });
+
+  it('does NOT include any TOTAL / VENTA / VENTAJA / ACUMULADO / TIPO line as an item', async () => {
+    const items = await carrefourParser.parse({
+      buffer: Buffer.from(''),
+      text: OCR_TICKET_ALAMEDA_REAL,
+    });
+    const forbidden = /TOTAL|VENTA|VENTAJA|ACUMULADO|^TIPO\b|BASE\s+CUOTA/i;
+    expect(items.every((i) => !forbidden.test(i.name))).toBe(true);
+  });
+});

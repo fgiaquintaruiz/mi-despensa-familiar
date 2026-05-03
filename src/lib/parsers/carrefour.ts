@@ -156,7 +156,7 @@ function extractItemsSpaced(rawText: string): ParsedTicketItem[] {
 // Parser B — OCR plain-text format (Carrefour Alameda image scan)
 //
 // The OCR produces plain text where the price on line N belongs to the product
-// whose name appears on line N+1.  Concrete structure:
+// whose name appears on line N+1.  Idealised structure:
 //
 //   <price_A>                   ← standalone price — belongs to product A
 //   <name_A>    <price_B>       ← name of A  +  price of B (OCR quirk)
@@ -164,124 +164,175 @@ function extractItemsSpaced(rawText: string): ParsedTicketItem[] {
 //   ...
 //   TOTAL / VENTA line          ← footer — stop collecting
 //
-// Strategy: scan lines, find product-section boundaries, pair each price with
-// the name that immediately follows (in reading order after the OCR shift).
+// Real-world Tesseract output is much noisier than the idealised case:
+// the "standalone price" line often comes preceded by garbage characters
+// (e.g. "EEN IARIÓN XENA ANNANRAAA 31,50"). We therefore EXTRACT every
+// price (last decimal token of each line) and every plausible name in
+// document order, then pair them positionally.
 // ---------------------------------------------------------------------------
 
-/** Plain-text price at end of line: one-or-more digits, comma, exactly two digits. */
-const PLAIN_PRICE_RE = /(\d+),(\d{2})\s*$/;
+/** Plain-text price ANYWHERE at end of line (preceded by space, start of line, or noise). */
+const TRAILING_PRICE_RE = /(\d+),(\d{2})\s*$/;
 
-/**
- * Reject lines that look like IVA/tax table rows or other non-product numeric lines.
- * A tax-table line contains a percentage mark or multiple price-like tokens.
- */
-const TAX_LINE_RE = /\d+,\d{2}%|\d+%/;
+/** Detects tax-table rows (percentages) or boundary tokens that close the products section. */
+const SECTION_END_RE =
+  /(ART\.\s*TOTAL|TOTAL\s+A\s+PAGAR|^\s*VENTA\b|VENTAJAS|ACUMULADO|TIPO\s+BASE|^\s*TIPO\b|\bBASE\b\s+\bCUOTA\b|\d+,\d{2}\s*%|\d+\s*%)/i;
 
-/**
- * Detects lines that are purely structural (separators, empty, header keywords).
- * Returns true → discard the line entirely.
- */
-function isStructuralLine(trimmed: string): boolean {
-  if (!trimmed) return true;
-  if (/^[=*]{3,}/.test(trimmed)) return true;
-  if (TAX_LINE_RE.test(trimmed)) return true;
-  if (SKIP_PATTERN.test(trimmed)) return true;
-  if (SKIP_PREFIX.test(trimmed)) return true;
-  // Lines like "LLEGA", "MI DÍA DE", "EL CLUB", "Alameda", "Telf. ..." — no digits, header/promo text
-  return false;
+/** Header / pre-products lines we skip when identifying the section start. */
+const HEADER_LINE_RE =
+  /^(CIF|TELF|TEL[ÉE]FONO|NRF|SOCIO|SALDO|CENTROS|CARREFOUR|ALAMEDA)/i;
+
+/** Reasonable price bounds for a single supermarket item. */
+const MIN_ITEM_PRICE = 0.10;
+const MAX_ITEM_PRICE = 999.99;
+
+/** Strip leading non-alphanumeric noise (e.g. "+ ", "==", "*", "—") from a name. */
+function cleanNamePart(raw: string): string {
+  return raw
+    .replace(/^[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]+/, '')
+    .replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]+$/, '')
+    .trim();
 }
 
-interface OcrToken {
-  name: string | null;  // product name in UPPERCASE, or null
-  price: number | null; // parsed price, or null
+/** Count alphanumeric chars — used to filter pure-noise lines. */
+function alphanumCount(s: string): number {
+  let count = 0;
+  for (const ch of s) {
+    if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]/.test(ch)) count++;
+  }
+  return count;
 }
 
-function tokenizeOcrLine(line: string): OcrToken {
+/**
+ * A line looks like a plausible product name when:
+ *  - it has at least 3 alphanumeric chars
+ *  - it contains at least one letter
+ *  - it is not a header / skip line
+ *  - alphanumeric ratio > 50% (filters OCR garbage soup)
+ */
+function looksLikeProductName(cleaned: string): boolean {
+  if (cleaned.length < 3) return false;
+  if (alphanumCount(cleaned) < 3) return false;
+  if (!/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(cleaned)) return false;
+  if (HEADER_LINE_RE.test(cleaned)) return false;
+  if (SECTION_END_RE.test(cleaned)) return false;
+  if (shouldSkip(cleaned)) return false;
+  const ratio = alphanumCount(cleaned) / cleaned.length;
+  return ratio >= 0.5;
+}
+
+/** Parse a price from regex match — returns null if outside reasonable bounds. */
+function parsePrice(intPart: string, decPart: string): number | null {
+  const value = parseFloat(`${intPart}.${decPart}`);
+  if (!Number.isFinite(value)) return null;
+  if (value < MIN_ITEM_PRICE || value > MAX_ITEM_PRICE) return null;
+  return value;
+}
+
+interface OcrLineParse {
+  /** Cleaned product name candidate, or null if the line yields none. */
+  name: string | null;
+  /** Trailing decimal price, or null if none / out of bounds. */
+  price: number | null;
+}
+
+function parseOcrLine(line: string): OcrLineParse {
   const trimmed = line.trim();
-  if (isStructuralLine(trimmed)) return { name: null, price: null };
+  if (!trimmed) return { name: null, price: null };
 
-  const priceMatch = PLAIN_PRICE_RE.exec(trimmed);
-  if (!priceMatch) {
-    // Name-only line — check it looks like a real product name (at least one letter)
-    const upper = trimmed.toUpperCase();
-    const hasLetter = /[A-ZÁÉÍÓÚÑÜ]/.test(upper);
-    return { name: hasLetter ? upper : null, price: null };
+  // Pure separators
+  if (/^[=*\-—_]{3,}\s*$/.test(trimmed)) return { name: null, price: null };
+
+  const priceMatch = TRAILING_PRICE_RE.exec(trimmed);
+  let price: number | null = null;
+  let remainder = trimmed;
+
+  if (priceMatch) {
+    price = parsePrice(priceMatch[1], priceMatch[2]);
+    remainder = trimmed.slice(0, priceMatch.index).trim();
   }
 
-  const price = parseFloat(`${priceMatch[1]}.${priceMatch[2]}`);
-  const namePart = trimmed.slice(0, priceMatch.index).trim();
+  const cleaned = cleanNamePart(remainder).toUpperCase();
+  const name = cleaned && looksLikeProductName(cleaned) ? cleaned : null;
+  return { name, price };
+}
 
-  if (!namePart) {
-    // Standalone price — no name on this line
-    return { name: null, price };
+/**
+ * Locate the product-section bounds within the OCR token list.
+ *
+ *  - start: first index whose line yields a PRICE (this anchors products;
+ *           name-only lines before any price are noise/header).
+ *  - end:   first index AT OR AFTER start whose ORIGINAL trimmed line matches
+ *           SECTION_END_RE (TOTAL, VENTA, tax table, etc.).
+ */
+function findProductSection(
+  lines: string[],
+): { start: number; end: number } | null {
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed) continue;
+    if (HEADER_LINE_RE.test(trimmed)) continue;
+    if (SECTION_END_RE.test(trimmed)) continue;
+    const parsed = parseOcrLine(lines[i]);
+    if (parsed.price !== null) {
+      start = i;
+      break;
+    }
   }
+  if (start === -1) return null;
 
-  // Has both name and price.  Validate the name part is product-like.
-  const nameUpper = namePart.toUpperCase();
-  if (!SKIP_PATTERN.test(nameUpper) && !SKIP_PREFIX.test(nameUpper) && /[A-ZÁÉÍÓÚÑÜ]/.test(nameUpper)) {
-    return { name: nameUpper, price };
+  let end = lines.length;
+  for (let i = start; i < lines.length; i++) {
+    if (SECTION_END_RE.test(lines[i].trim())) {
+      end = i;
+      break;
+    }
   }
-
-  // Name part looks like a skip token — treat the whole line as skip
-  return { name: null, price: null };
+  return { start, end };
 }
 
 function extractItemsOcr(rawText: string): ParsedTicketItem[] {
   const lines = rawText.split('\n');
-  const tokens = lines.map(tokenizeOcrLine);
+  const section = findProductSection(lines);
+  if (!section) return [];
 
-  // Observed sequence per product pair (OCR quirk):
-  //   token[i]:   { name: null,              price: P_A }  ← standalone price of product A
-  //   token[i+1]: { name: NAME_A,            price: P_B }  ← name of A + price of B
-  //   token[i+2]: { name: NAME_B,            price: null } ← name of B only
+  // Walk the section, extracting prices and names IN DOCUMENT ORDER.
+  // Each line can contribute up to one price + one name (in either combination).
   //
-  // Pairing rule: each price token pairs with the NEXT name token in document order,
-  // provided that next name token appears AFTER the price token (positionally).
-  //
-  // We walk the token list. When we find a price, we scan forward for the first
-  // name token that hasn't been consumed yet.
+  // Special case for the FIRST line of the section: the Carrefour Alameda OCR
+  // quirk means this line is ALWAYS a standalone price for the first product
+  // (the following line carries that product's name). Any text Tesseract puts
+  // before the price on this first line is hallucinated noise from blank space.
+  // We therefore drop the "name" component of the first section line.
+  const prices: number[] = [];
+  const names: string[] = [];
 
-  // Index the positions of name tokens (filtering out non-product header names).
-  // We identify the product section: it starts at the first standalone price line
-  // (price with no name) and ends at the first TOTAL/separator line.
-
-  // Find product section bounds
-  const productSectionStart = tokens.findIndex(
-    (t, i) => t.price !== null && t.name === null && i > 0,
-  );
-  if (productSectionStart === -1) return [];
-
-  // Collect (index, name) and (index, price) entries WITHIN the product section
-  type Indexed<T> = { idx: number; value: T };
-  const priceEntries: Array<Indexed<number>> = [];
-  const nameEntries: Array<Indexed<string>> = [];
-
-  for (let i = productSectionStart; i < tokens.length; i++) {
-    const tok = tokens[i];
-    if (tok.price !== null) priceEntries.push({ idx: i, value: tok.price });
-    if (tok.name !== null)  nameEntries.push({ idx: i, value: tok.name });
+  for (let i = section.start; i < section.end; i++) {
+    const { name, price } = parseOcrLine(lines[i]);
+    if (price !== null) prices.push(price);
+    if (name !== null && i !== section.start) names.push(name);
   }
 
-  // Pair each price with the first name that comes AFTER it (idx >= price.idx)
-  const usedNameIndices = new Set<number>();
+  if (prices.length === 0 || names.length === 0) return [];
+
+  // Pair positionally: prices[k] belongs to names[k].
+  // This works for the OCR quirk because the first standalone price is the
+  // first price (index 0), followed by name_A (index 0). The "name + price"
+  // line contributes name_A AND price_B → keeps lockstep.
+  const pairCount = Math.min(prices.length, names.length);
   const items: ParsedTicketItem[] = [];
-
-  for (const pe of priceEntries) {
-    const nameEntry = nameEntries.find(
-      (ne) => ne.idx >= pe.idx && !usedNameIndices.has(ne.idx),
-    );
-    if (!nameEntry) continue;
-
-    usedNameIndices.add(nameEntry.idx);
+  for (let k = 0; k < pairCount; k++) {
+    const name = names[k];
+    const price = prices[k];
     items.push({
-      name: nameEntry.value,
+      name,
       qty: 1,
       unit: '',
-      price: pe.value,
-      category: mapCategory(nameEntry.value),
+      price,
+      category: mapCategory(name),
     });
   }
-
   return items;
 }
 

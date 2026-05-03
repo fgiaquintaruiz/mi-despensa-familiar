@@ -42,3 +42,8 @@ yarn-error.log*
 next-env.d.ts
 
 .atl/
+
+# local debug artifacts
+bash.exe.stackdump
+.gga
+supabase/.temp/

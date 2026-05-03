@@ -4,28 +4,24 @@ import { useState } from 'react';
 import Link from 'next/link';
 import NotificationPermission from '@/components/NotificationPermission';
 import LogoutButton from './LogoutButton';
+import pkg from '../../../../package.json';
 
 export default function AppHeader() {
   const [open, setOpen] = useState(false);
 
   return (
     <div className="mb-6 flex items-center justify-between">
-      <h1 className="text-3xl font-extrabold text-[var(--color-brand)]">Mi Despensa</h1>
+      <div>
+        <h1 className="text-3xl font-extrabold text-[var(--color-brand)]">Mi Despensa</h1>
+        <span className="text-xs text-gray-400">v{pkg.version}</span>
+      </div>
 
-      {/* Desktop nav — all items inline, no dropdown */}
-      <nav className="hidden items-center gap-2 md:flex">
-        <NavLinks />
-        <NotificationPermission />
-        <LogoutButton />
-      </nav>
-
-      {/* Mobile hamburger button */}
       <button
         aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
         aria-expanded={open}
-        aria-controls="mobile-menu"
+        aria-controls="app-menu"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--color-brand)] text-[var(--color-brand)] md:hidden"
+        className="flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--color-brand)] text-[var(--color-brand)]"
       >
         {open ? (
           <svg
@@ -61,11 +57,10 @@ export default function AppHeader() {
         )}
       </button>
 
-      {/* Mobile dropdown — single menu with all items */}
       {open && (
         <div
-          id="mobile-menu"
-          className="absolute right-0 top-[72px] z-50 w-fit min-w-max border border-[var(--color-brand)]/20 rounded-xl bg-white px-5 py-3 shadow-lg md:hidden"
+          id="app-menu"
+          className="absolute right-0 top-[72px] z-50 w-fit min-w-max rounded-xl border border-[var(--color-brand)]/20 bg-white px-5 py-3 shadow-lg"
         >
           <nav className="flex flex-col gap-1">
             <NavLinks onClick={() => setOpen(false)} />

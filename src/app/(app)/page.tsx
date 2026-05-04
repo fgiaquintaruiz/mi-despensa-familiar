@@ -3,7 +3,6 @@ import type { Product } from '@/lib/types';
 import DashboardStats from './_components/DashboardStats';
 import ProductFilters from './_components/ProductFilters';
 import FabSpeedDial from './_components/FabSpeedDial';
-import AppHeader from './_components/AppHeader';
 
 export default async function Home() {
   const supabase = await createClient();
@@ -34,8 +33,7 @@ export default async function Home() {
 
   return (
     <>
-      <main className="relative mx-auto max-w-[480px] px-5 py-8">
-        <AppHeader />
+      <main className="pb-8">
         <DashboardStats total={total} lowStock={lowStock} categories={categories} />
         <ProductFilters products={list} />
       </main>

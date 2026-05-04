@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import AppHeader from './_components/AppHeader';
 
 export default async function AppLayout({
   children,
@@ -26,5 +27,10 @@ export default async function AppLayout({
     redirect('/onboarding');
   }
 
-  return <>{children}</>;
+  return (
+    <div className="relative mx-auto max-w-[480px] px-5 pt-8">
+      <AppHeader />
+      {children}
+    </div>
+  );
 }

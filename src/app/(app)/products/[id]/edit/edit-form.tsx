@@ -40,6 +40,14 @@ export default function EditForm({ product, priceHistory = [] }: Props) {
   const [stock, setStock] = useState(product.current_stock);
   const [minStock, setMinStock] = useState(product.min_stock);
 
+  const initialDate = product.expires_at ? product.expires_at.split('T')[0] : '';
+  const [expiresDay, setExpiresDay] = useState(initialDate ? initialDate.split('-')[2] : '');
+  const [expiresMonth, setExpiresMonth] = useState(initialDate ? initialDate.split('-')[1] : '');
+  const [expiresYear, setExpiresYear] = useState(initialDate ? initialDate.split('-')[0] : '');
+  const expiresAt = expiresDay && expiresMonth && expiresYear
+    ? `${expiresYear.padStart(4,'0')}-${expiresMonth.padStart(2,'0')}-${expiresDay.padStart(2,'0')}`
+    : '';
+
   const [state, formAction] = useActionState(
     async (prev: unknown, fd: FormData) => {
       const result = await updateProductAction(prev, fd);
@@ -192,17 +200,15 @@ export default function EditForm({ product, priceHistory = [] }: Props) {
       </div>
 
       <div className="mb-6">
-        <label htmlFor="edit-expires-at" className="mb-1 block text-sm font-medium text-gray-700">
+        <p className="mb-1 block text-sm font-medium text-gray-700">
           Fecha de vencimiento <span className="font-normal text-gray-400">(opcional)</span>
-        </label>
-        <input
-          id="edit-expires-at"
-          name="expires_at"
-          type="date"
-          min={new Date().toISOString().split('T')[0]}
-          defaultValue={product.expires_at ? product.expires_at.split('T')[0] : ''}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
-        />
+        </p>
+        <div className="flex gap-2">
+          <input type="number" min={1} max={31} placeholder="DD" value={expiresDay} onChange={e => setExpiresDay(e.target.value)} className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]" />
+          <input type="number" min={1} max={12} placeholder="MM" value={expiresMonth} onChange={e => setExpiresMonth(e.target.value)} className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]" />
+          <input type="number" min={2024} max={2099} placeholder="AAAA" value={expiresYear} onChange={e => setExpiresYear(e.target.value)} className="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]" />
+        </div>
+        {expiresAt && <input type="hidden" name="expires_at" value={expiresAt} />}
       </div>
 
       {state?.error && (

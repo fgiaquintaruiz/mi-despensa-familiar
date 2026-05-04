@@ -38,6 +38,9 @@ export default function ProductList({ products }: Props) {
         >
           <div>
             <p className="font-medium">{product.name}</p>
+            {product.brand && (
+              <p className="text-xs text-gray-400">{product.brand}</p>
+            )}
             <p className="text-xs text-gray-500">{categoryLabel(product.category)}</p>
             <p className="text-xs text-gray-400">
               Agregado el{' '}

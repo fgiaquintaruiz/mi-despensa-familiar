@@ -46,7 +46,12 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
   const [brand, setBrand] = useState('');
   const [price, setPrice] = useState(0);
   const [barcode, setBarcode] = useState('');
-  const [expiresAt, setExpiresAt] = useState('');
+  const [expiresDay, setExpiresDay] = useState('');
+  const [expiresMonth, setExpiresMonth] = useState('');
+  const [expiresYear, setExpiresYear] = useState('');
+  const expiresAt = expiresDay && expiresMonth && expiresYear
+    ? `${expiresYear.padStart(4,'0')}-${expiresMonth.padStart(2,'0')}-${expiresDay.padStart(2,'0')}`
+    : '';
   const [scannerOpen, setScannerOpen] = useState(false);
   const [autoSaveCountdown, setAutoSaveCountdown] = useState<number | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -87,7 +92,9 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
         setSelectedCategory(null);
         setStock(1);
         setBarcode('');
-        setExpiresAt('');
+        setExpiresDay('');
+        setExpiresMonth('');
+        setExpiresYear('');
         router.refresh();
       }
       return result;
@@ -104,7 +111,9 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
     setSelectedCategory(null);
     setStock(1);
     setBarcode('');
-    setExpiresAt('');
+    setExpiresDay('');
+    setExpiresMonth('');
+    setExpiresYear('');
   }
 
   async function handleBarcodeScanned(scannedBarcode: string) {
@@ -157,7 +166,7 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
             onClick={handleClose}
           />
 
-          <div className="fixed inset-x-0 bottom-0 rounded-t-2xl bg-white p-6 shadow-xl">
+          <div className="fixed inset-x-0 bottom-0 rounded-t-2xl bg-white p-6 shadow-xl max-w-[480px] mx-auto">
             <form ref={formRef} action={formAction} onPointerDown={cancelCountdown}>
               <input type="hidden" name="current_stock" value={stock} />
               {selectedCategory && (
@@ -283,17 +292,14 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
               </div>
 
               <div className="mb-6">
-                <label htmlFor="product-expires-at" className="mb-1 block text-sm font-medium text-gray-700">
+                <p className="mb-1 block text-sm font-medium text-gray-700">
                   Fecha de vencimiento <span className="font-normal text-gray-400">(opcional)</span>
-                </label>
-                <input
-                  id="product-expires-at"
-                  type="date"
-                  min={new Date().toISOString().split('T')[0]}
-                  value={expiresAt}
-                  onChange={(e) => setExpiresAt(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
-                />
+                </p>
+                <div className="flex gap-2">
+                  <input type="number" min={1} max={31} placeholder="DD" value={expiresDay} onChange={e => setExpiresDay(e.target.value)} className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]" />
+                  <input type="number" min={1} max={12} placeholder="MM" value={expiresMonth} onChange={e => setExpiresMonth(e.target.value)} className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]" />
+                  <input type="number" min={2024} max={2099} placeholder="AAAA" value={expiresYear} onChange={e => setExpiresYear(e.target.value)} className="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]" />
+                </div>
               </div>
 
               {state?.error && (

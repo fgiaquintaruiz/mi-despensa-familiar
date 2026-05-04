@@ -592,9 +592,10 @@ export default function ImportTicketPage() {
                     />
                     <span className="flex-1 text-sm font-medium">
                       {row.name}
-                      {row.brand && (
-                        <span className="ml-1 text-xs font-normal text-gray-400">{row.brand}</span>
-                      )}
+                      {isEnrichingBrands ? null : row.brand
+                        ? <span className="ml-1 text-xs font-normal text-gray-400">{row.brand}</span>
+                        : <span className="ml-1 text-xs font-normal text-gray-300">sin marca</span>
+                      }
                     </span>
                     <span className="text-xs text-gray-500">x{row.qty}</span>
                     <span className="text-xs text-gray-500">{row.price.toFixed(2)} €</span>

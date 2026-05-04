@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { CATEGORIES } from '@/lib/types';
 import ShareButton from '../_components/ShareButton';
 import { calculateShoppingList } from '@/lib/shopping-list';
+import { PageHeader } from '../_components/PageHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,25 +68,10 @@ export default async function ShoppingListPage() {
 
   return (
     <main className="mx-auto max-w-[480px] px-5 py-8 pb-32">
-      <div className="mb-6 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-1 font-bold text-[var(--color-brand)]">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="m15 18-6-6 6-6" />
-          </svg>
-          Volver
-        </Link>
-        <h1 className="text-2xl font-extrabold text-[var(--color-brand)]">Lista de Compra</h1>
-      </div>
+      <PageHeader
+        breadcrumbs={[{ label: 'Mi Despensa', href: '/' }]}
+        title="Lista de Compra"
+      />
 
       {grouped.length === 0 ? (
         <div className="py-12 text-center">

@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { CATEGORIES } from '@/lib/types';
 import StatsCharts from './_components/StatsCharts';
+import { PageHeader } from '../_components/PageHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,16 +97,10 @@ export default async function StatsPage() {
 
   return (
     <main className="mx-auto max-w-[480px] px-5 py-8">
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-extrabold text-[var(--color-brand)]">Estadísticas</h1>
-        <Link
-          href="/"
-          className="rounded-lg border border-[var(--color-brand)] px-3 py-1.5 text-sm font-semibold text-[var(--color-brand)]"
-        >
-          Despensa
-        </Link>
-      </div>
+      <PageHeader
+        breadcrumbs={[{ label: 'Mi Despensa', href: '/' }]}
+        title="Estadísticas"
+      />
 
       {/* Summary cards */}
       <div className="mb-8 grid grid-cols-3 gap-3">

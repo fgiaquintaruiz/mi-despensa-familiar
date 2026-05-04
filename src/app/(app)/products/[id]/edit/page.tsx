@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import type { PriceHistoryEntry } from '@/lib/types';
 import EditForm from './edit-form';
+import { PageHeader } from '../../_components/PageHeader';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -51,12 +51,10 @@ export default async function EditProductPage({ params }: Props) {
 
   return (
     <div className="max-w-[480px] mx-auto px-5 py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <Link href="/" className="text-sm text-[var(--color-brand)] hover:underline">
-          ← Volver
-        </Link>
-        <h1 className="text-xl font-bold">Editar producto</h1>
-      </div>
+      <PageHeader
+        breadcrumbs={[{ label: 'Mi Despensa', href: '/' }]}
+        title="Editar producto"
+      />
       <EditForm product={product} priceHistory={(priceHistory ?? []) as PriceHistoryEntry[]} />
     </div>
   );

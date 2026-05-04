@@ -146,6 +146,100 @@ export type ConsumptionLogUpdate = Partial<Omit<ConsumptionLogInsert, 'id'>>;
 export type PriceHistoryUpdate = Partial<Omit<PriceHistoryInsert, 'id'>>;
 
 // ------------------------------------------------------------
+// Budget & Shopping Transaction types
+// Added in: budget-supermercado feature
+// ------------------------------------------------------------
+
+// --- Row types (SELECT) ---
+
+export type BudgetPeriodType = 'monthly' | 'biweekly';
+
+export interface Budget {
+  id: string;
+  household_id: string;
+  amount: number;
+  period_type: BudgetPeriodType;
+  start_date: string;   // ISO date string "YYYY-MM-DD"
+  end_date: string;     // ISO date string "YYYY-MM-DD"
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShoppingTransaction {
+  id: string;
+  household_id: string;
+  store_name: string | null;
+  total_amount: number;
+  item_count: number;
+  transaction_date: string; // "YYYY-MM-DD"
+  source: 'ocr' | 'manual';
+  notes: string | null;
+  created_at: string;
+}
+
+export interface TransactionItem {
+  id: string;
+  transaction_id: string;
+  product_id: string | null;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  created_at: string;
+}
+
+// --- Computed type (NOT a DB row) ---
+export interface BudgetSummary {
+  budget: Budget;
+  spent: number;           // SUM(total_amount) of transactions in the active period
+  remaining: number;       // budget.amount - spent
+  percentage: number;      // (spent / budget.amount) * 100, clamped 0-100
+  transactionCount: number;
+}
+
+// --- Insert types ---
+export interface BudgetInsert {
+  id?: string;
+  household_id: string;
+  amount: number;
+  period_type: BudgetPeriodType;
+  start_date: string;
+  end_date: string;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ShoppingTransactionInsert {
+  id?: string;
+  household_id: string;
+  store_name?: string | null;
+  total_amount: number;
+  item_count?: number;
+  transaction_date?: string;
+  source?: 'ocr' | 'manual';
+  notes?: string | null;
+  created_at?: string;
+}
+
+export interface TransactionItemInsert {
+  id?: string;
+  transaction_id: string;
+  product_id?: string | null;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  created_at?: string;
+}
+
+// --- Update types ---
+export type BudgetUpdate = Partial<Omit<BudgetInsert, 'id' | 'household_id'>>;
+
+// ShoppingTransaction and TransactionItem are immutable in MVP — no Update types.
+
+// ------------------------------------------------------------
 // Database shape — compatible with createClient<Database>()
 // Matches the shape produced by `supabase gen types typescript`
 // ------------------------------------------------------------
@@ -158,6 +252,9 @@ export type Database = {
       products: { Row: Product; Insert: ProductInsert; Update: ProductUpdate };
       consumption_logs: { Row: ConsumptionLog; Insert: ConsumptionLogInsert; Update: ConsumptionLogUpdate };
       price_history: { Row: PriceHistoryEntry; Insert: PriceHistoryInsert; Update: PriceHistoryUpdate };
+      budgets: { Row: Budget; Insert: BudgetInsert; Update: BudgetUpdate };
+      shopping_transactions: { Row: ShoppingTransaction; Insert: ShoppingTransactionInsert; Update: never };
+      transaction_items: { Row: TransactionItem; Insert: TransactionItemInsert; Update: never };
     };
   };
 };

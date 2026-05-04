@@ -240,6 +240,60 @@ export async function importTicketItemsAction(
     importedCount++;
   }
 
+  // -------------------------------------------------------------------------
+  // Budget tracking — best-effort: never fails the main import flow
+  // -------------------------------------------------------------------------
+  if (importedCount > 0 && items.length > 0) {
+    try {
+      const totalAmount = items.reduce((acc, item) => acc + item.price * item.qty, 0);
+
+      const itemsWithIds = items.map((item) => {
+        const product = productMap.get(item.name.toLowerCase());
+        return {
+          product_id: product?.id ?? null,
+          product_name: item.name,
+          quantity: item.qty,
+          unit_price: item.price,
+          line_total: item.price * item.qty,
+        };
+      });
+
+      const { data: transaction, error: txError } = await supabase
+        .from('shopping_transactions')
+        .insert({
+          household_id: membership.household_id,
+          total_amount: totalAmount,
+          item_count: items.length,
+          source: 'ocr',
+        })
+        .select('id')
+        .single();
+
+      if (txError || !transaction) {
+        console.error('[budget-tracking] Failed to insert shopping_transaction:', txError?.message);
+        // best-effort: continue without throwing
+      } else {
+        const { error: itemsError } = await supabase
+          .from('transaction_items')
+          .insert(
+            itemsWithIds.map((i) => ({
+              ...i,
+              transaction_id: transaction.id,
+            })),
+          );
+
+        if (itemsError) {
+          console.error('[budget-tracking] Failed to insert transaction_items:', itemsError.message);
+          // Orphaned transaction is acceptable in MVP — log and move on
+        }
+      }
+    } catch (budgetErr) {
+      // Never propagate budget tracking errors to the caller
+      console.error('[budget-tracking] Unexpected error:', budgetErr);
+    }
+  }
+  // -------------------------------------------------------------------------
+
   revalidatePath('/', 'layout');
   return { imported: importedCount };
 }

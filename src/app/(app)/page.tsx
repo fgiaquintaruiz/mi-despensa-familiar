@@ -5,6 +5,8 @@ import DashboardStats from './_components/DashboardStats';
 import ProductFilters from './_components/ProductFilters';
 import FabSpeedDial from './_components/FabSpeedDial';
 import { ImportSuccessToast } from './_components/ImportSuccessToast';
+import BudgetWidget from './_components/BudgetWidget';
+import { getBudgetSummaryAction } from './budget/actions';
 
 export default async function Home({
   searchParams,
@@ -26,11 +28,10 @@ export default async function Home({
     .limit(1)
     .maybeSingle();
 
-  const { data: products } = await supabase
-    .from('products')
-    .select('*')
-    .eq('household_id', membership!.household_id)
-    .order('name');
+  const [{ data: products }, { data: budgetSummary }] = await Promise.all([
+    supabase.from('products').select('*').eq('household_id', membership!.household_id).order('name'),
+    getBudgetSummaryAction(),
+  ]);
 
   const list: Product[] = products ?? [];
 
@@ -49,6 +50,9 @@ export default async function Home({
       )}
       <main className="pb-8">
         <DashboardStats total={total} lowStock={lowStock} categories={categories} />
+        <div className="mb-4">
+          <BudgetWidget summary={budgetSummary ?? null} />
+        </div>
         <ProductFilters products={list} />
       </main>
       <FabSpeedDial />

@@ -1,0 +1,235 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { createClient } from '@/lib/supabase/server';
+import type { Budget, BudgetInsert, BudgetSummary, ShoppingTransaction, TransactionItem } from '@/lib/types';
+
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
+
+/** Computes end_date from start_date and period_type. */
+function computeEndDate(startDate: string, periodType: 'monthly' | 'biweekly'): string {
+  const start = new Date(startDate);
+  if (periodType === 'monthly') {
+    start.setMonth(start.getMonth() + 1);
+  } else {
+    start.setDate(start.getDate() + 14);
+  }
+  return start.toISOString().split('T')[0];
+}
+
+// ---------------------------------------------------------------------------
+// getBudgetSummaryAction
+// ---------------------------------------------------------------------------
+/**
+ * Returns the BudgetSummary for the current active period of the user's household.
+ * Returns { data: undefined } if no active budget covers today.
+ *
+ * 2 queries — no N+1:
+ *  1. SELECT budget (active, covers today)
+ *  2. SELECT SUM via bulk transactions fetch
+ */
+export async function getBudgetSummaryAction(): Promise<{ data?: BudgetSummary; error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: 'No autenticado' };
+
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) return { error: 'No se encontró el hogar' };
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data: budget, error: budgetError } = await supabase
+    .from('budgets')
+    .select('*')
+    .eq('household_id', membership.household_id)
+    .eq('is_active', true)
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .order('start_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (budgetError) return { error: budgetError.message };
+  if (!budget) return { data: undefined };
+
+  const { data: aggData, error: aggError } = await supabase
+    .from('shopping_transactions')
+    .select('total_amount, id')
+    .eq('household_id', membership.household_id)
+    .gte('transaction_date', budget.start_date)
+    .lte('transaction_date', budget.end_date);
+
+  if (aggError) return { error: aggError.message };
+
+  const transactions = aggData ?? [];
+  const spent = transactions.reduce((acc, t) => acc + Number(t.total_amount), 0);
+  const remaining = Number(budget.amount) - spent;
+  const percentage = Math.min(100, Math.round((spent / Number(budget.amount)) * 100));
+
+  return {
+    data: {
+      budget: budget as Budget,
+      spent,
+      remaining,
+      percentage,
+      transactionCount: transactions.length,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// createBudgetAction
+// ---------------------------------------------------------------------------
+/**
+ * Creates a new budget for the authenticated user's household.
+ * Deactivates the previous active budget before inserting the new one.
+ */
+export async function createBudgetAction(
+  _prevState: unknown,
+  formData: FormData,
+): Promise<{ error?: string; budgetId?: string }> {
+  const amountRaw = formData.get('amount');
+  const periodType = formData.get('period_type') as 'monthly' | 'biweekly' | null;
+  const startDate = (formData.get('start_date') as string | null)?.trim() ?? '';
+
+  const amount = Number(amountRaw);
+
+  if (!amount || amount <= 0) return { error: 'El monto debe ser mayor a 0.' };
+  if (!periodType || !['monthly', 'biweekly'].includes(periodType)) {
+    return { error: 'Período inválido.' };
+  }
+  if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    return { error: 'Fecha de inicio inválida.' };
+  }
+
+  const endDate = computeEndDate(startDate, periodType);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: 'No autenticado' };
+
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) return { error: 'No se encontró el hogar' };
+
+  // Deactivate previous active budget
+  await supabase
+    .from('budgets')
+    .update({ is_active: false })
+    .eq('household_id', membership.household_id)
+    .eq('is_active', true);
+
+  const insert: BudgetInsert = {
+    household_id: membership.household_id,
+    amount,
+    period_type: periodType,
+    start_date: startDate,
+    end_date: endDate,
+    is_active: true,
+  };
+
+  const { data: newBudget, error } = await supabase
+    .from('budgets')
+    .insert(insert)
+    .select('id')
+    .single();
+
+  if (error) return { error: error.message };
+
+  revalidatePath('/', 'layout');
+  return { budgetId: newBudget.id };
+}
+
+// ---------------------------------------------------------------------------
+// getTransactionsForBudgetAction
+// ---------------------------------------------------------------------------
+/**
+ * Returns shopping_transactions for the period of a specific budget.
+ * Ordered DESC by transaction_date. RLS enforced via household_id.
+ */
+export async function getTransactionsForBudgetAction(
+  budgetId: string,
+): Promise<{ data?: ShoppingTransaction[]; error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: 'No autenticado' };
+
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) return { error: 'No se encontró el hogar' };
+
+  // Verify ownership before reading transactions
+  const { data: budget } = await supabase
+    .from('budgets')
+    .select('start_date, end_date')
+    .eq('id', budgetId)
+    .eq('household_id', membership.household_id)
+    .single();
+
+  if (!budget) return { error: 'Budget no encontrado' };
+
+  const { data, error } = await supabase
+    .from('shopping_transactions')
+    .select('*')
+    .eq('household_id', membership.household_id)
+    .gte('transaction_date', budget.start_date)
+    .lte('transaction_date', budget.end_date)
+    .order('transaction_date', { ascending: false });
+
+  if (error) return { error: error.message };
+  return { data: data ?? [] };
+}
+
+// ---------------------------------------------------------------------------
+// getTransactionItemsAction
+// ---------------------------------------------------------------------------
+/**
+ * Returns items for a specific transaction (drill-down).
+ * RLS guarantees the user can only see items from their household's transactions.
+ */
+export async function getTransactionItemsAction(
+  transactionId: string,
+): Promise<{ data?: TransactionItem[]; error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: 'No autenticado' };
+
+  const { data, error } = await supabase
+    .from('transaction_items')
+    .select('*')
+    .eq('transaction_id', transactionId)
+    .order('line_total', { ascending: false });
+
+  if (error) return { error: error.message };
+  return { data: data ?? [] };
+}

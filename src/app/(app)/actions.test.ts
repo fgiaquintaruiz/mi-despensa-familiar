@@ -195,3 +195,115 @@ describe('logoutAction', () => {
     expect(redirect).toHaveBeenCalledWith('/login');
   });
 });
+
+// ---------------------------------------------------------------------------
+// T-007: importTicketItemsAction — best-effort budget tracking
+// ---------------------------------------------------------------------------
+
+describe('importTicketItemsAction — budget tracking (best-effort)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupSupabaseMock();
+  });
+
+  it('returns correct imported count when budget tracking succeeds', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Existing products (empty)
+      .mockImplementationOnce((resolve) => resolve({ data: [], error: null }))
+      // Insert Leche
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-leche' }, error: null }))
+      // Log Leche restock
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }))
+      // budget: insert shopping_transaction
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'tx-1' }, error: null }))
+      // budget: insert transaction_items
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    const items = [{ name: 'Leche', qty: 2, price: 75, category: 'frescos' as const }];
+    const result = await importTicketItemsAction(items);
+    expect(result.imported).toBe(1);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('still returns correct imported count when shopping_transaction insert fails (best-effort)', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Existing products (empty)
+      .mockImplementationOnce((resolve) => resolve({ data: [], error: null }))
+      // Insert Leche
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-leche' }, error: null }))
+      // Log Leche restock
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }))
+      // budget: shopping_transaction insert FAILS
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'DB constraint violation' } }));
+
+    const items = [{ name: 'Leche', qty: 2, price: 75, category: 'frescos' as const }];
+    const result = await importTicketItemsAction(items);
+    // Best-effort: imported count must not change even if budget tracking fails
+    expect(result.imported).toBe(1);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('does not throw when transaction_items insert fails (orphaned transaction is acceptable)', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Existing products (empty)
+      .mockImplementationOnce((resolve) => resolve({ data: [], error: null }))
+      // Insert Pan
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-pan' }, error: null }))
+      // Log Pan restock
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }))
+      // budget: shopping_transaction insert OK
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'tx-1' }, error: null }))
+      // budget: transaction_items insert FAILS
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'items insert failed' } }));
+
+    const items = [{ name: 'Pan', qty: 1, price: 120, category: 'despensa' as const }];
+    // Must NOT throw — best-effort guarantees no propagation
+    await expect(importTicketItemsAction(items)).resolves.toEqual({ imported: 1 });
+  });
+
+  it('computes total_amount as sum of line totals', async () => {
+    let capturedTransaction: Record<string, unknown> | undefined;
+
+    const originalMockFrom = mockFrom;
+    let callCount = 0;
+    mockFrom.mockImplementation((table: string) => {
+      callCount++;
+      if (table === 'shopping_transactions' && callCount > 4) {
+        // Capture the insert call on shopping_transactions (budget tracking)
+        const qb = { ...mockQueryBuilder };
+        qb.insert = vi.fn().mockImplementation((data: unknown) => {
+          capturedTransaction = data as Record<string, unknown>;
+          return qb;
+        });
+        mockThen.mockImplementationOnce((resolve) => resolve({ data: { id: 'tx-1' }, error: null }));
+        return qb;
+      }
+      return mockQueryBuilder;
+    });
+
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: [], error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-leche' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-pan' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'tx-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    const items = [
+      { name: 'Leche', qty: 2, price: 75, category: 'frescos' as const },
+      { name: 'Pan', qty: 1, price: 120, category: 'despensa' as const },
+    ];
+    const result = await importTicketItemsAction(items);
+    expect(result.imported).toBe(2);
+    // total_amount = 2*75 + 1*120 = 270
+    mockFrom.mockReturnValue(mockQueryBuilder);
+  });
+});

@@ -78,7 +78,7 @@ export async function addProductAction(
     await supabase.from('price_history').insert({ product_id: newProduct.id, price });
   }
 
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
   return {};
 }
 
@@ -148,7 +148,7 @@ export async function updateProductAction(
     await supabase.from('price_history').insert({ product_id: id, price });
   }
 
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
   return {};
 }
 
@@ -240,7 +240,7 @@ export async function importTicketItemsAction(
     importedCount++;
   }
 
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
   return { imported: importedCount };
 }
 
@@ -324,7 +324,7 @@ export async function consumeProductAction(productId: string): Promise<{ error?:
     });
   }
 
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
   return {};
 }
 
@@ -359,6 +359,6 @@ export async function deleteProductAction(productId: string): Promise<{ error?: 
     return { error: error.message };
   }
 
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
   return {};
 }

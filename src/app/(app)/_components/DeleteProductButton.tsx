@@ -13,15 +13,21 @@ export default function DeleteProductButton({ productId, productName }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPending, setIsPending] = useState(false);
 
   async function handleConfirm() {
-    const result = await deleteProductAction(productId);
-    if (result.error) {
-      setError(result.error);
-      return;
+    setIsPending(true);
+    try {
+      const result = await deleteProductAction(productId);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setOpen(false);
+      router.refresh();
+    } finally {
+      setIsPending(false);
     }
-    setOpen(false);
-    router.refresh();
   }
 
   return (
@@ -58,9 +64,18 @@ export default function DeleteProductButton({ productId, productName }: Props) {
               <button
                 type="button"
                 onClick={handleConfirm}
-                className="flex-1 rounded-xl bg-red-600 py-3 font-medium text-white"
+                disabled={isPending}
+                className="flex-1 rounded-xl bg-red-600 py-3 font-medium text-white disabled:opacity-60"
               >
-                Eliminar
+                {isPending ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 inline mr-1" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    Eliminando...
+                  </>
+                ) : 'Eliminar'}
               </button>
             </div>
           </div>

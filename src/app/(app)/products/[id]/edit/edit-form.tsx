@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { CATEGORIES, categoryLabel, type Category } from '@/lib/types';
 import type { Product, PriceHistoryEntry } from '@/lib/types';
@@ -9,6 +10,27 @@ import { updateProductAction } from '../../../actions';
 interface Props {
   product: Product;
   priceHistory: PriceHistoryEntry[];
+}
+
+function SubmitButton({ disabled }: { disabled?: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={disabled || pending}
+      className="flex-1 rounded-xl bg-[var(--color-brand)] py-3 font-medium text-white disabled:opacity-40"
+    >
+      {pending ? (
+        <>
+          <svg className="animate-spin h-4 w-4 inline mr-1" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          Guardando...
+        </>
+      ) : 'Guardar cambios'}
+    </button>
+  );
 }
 
 export default function EditForm({ product, priceHistory = [] }: Props) {
@@ -195,13 +217,7 @@ export default function EditForm({ product, priceHistory = [] }: Props) {
         >
           Cancelar
         </button>
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="flex-1 rounded-xl bg-[var(--color-brand)] py-3 font-medium text-white disabled:opacity-40"
-        >
-          Guardar cambios
-        </button>
+        <SubmitButton disabled={!canSubmit} />
       </div>
     </form>
 

@@ -12,7 +12,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/lib/openfoodfacts', () => ({
-  lookupBrand: vi.fn().mockResolvedValue(null),
+  lookupBrand: vi.fn().mockResolvedValue({}),
 }));
 
 const { importTicketItemsAction } = await import('../actions');

@@ -84,26 +84,36 @@ export default function ImportTicketPage() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ocr = useOcr();
 
-  /** Enriches each item's brand via Open Food Facts. Items without a brand are looked up in parallel. */
+  /** Enriches each item's brand and product name via Open Food Facts. Items without a brand are looked up in parallel. */
   async function enrichItemsWithBrands(itemRows: ItemRow[]): Promise<void> {
     setIsEnrichingBrands(true);
     const results = await Promise.allSettled(
       itemRows.map((row) =>
-        row.brand ? Promise.resolve(row.brand) : lookupBrand(row.name),
+        row.brand ? Promise.resolve({ brand: row.brand }) : lookupBrand(row.name),
       ),
     );
-    // Build a name→brand map from the settled results to safely merge with current state.
-    const brandMap = new Map<string, string>();
+    // Build a name→{ brand?, productName? } map from the settled results to safely merge with current state.
+    const enrichMap = new Map<string, { brand?: string; productName?: string }>();
     itemRows.forEach((row, idx) => {
       const result = results[idx];
       if (result?.status === 'fulfilled' && result.value) {
-        brandMap.set(row.name, result.value);
+        enrichMap.set(row.name, result.value);
       }
     });
     setRows((prev) =>
       prev.map((row) => {
-        const brand = brandMap.get(row.name);
-        return brand ? { ...row, brand } : row;
+        const enriched = enrichMap.get(row.name);
+        if (!enriched) return row;
+        const updated: ItemRow = { ...row };
+        if (enriched.brand) updated.brand = enriched.brand;
+        if (enriched.productName) {
+          const ofoNorm = enriched.productName.trim().toLowerCase();
+          const rowNorm = row.name.trim().toLowerCase();
+          if (ofoNorm !== rowNorm) {
+            updated.name = enriched.productName;
+          }
+        }
+        return updated;
       }),
     );
     setIsEnrichingBrands(false);

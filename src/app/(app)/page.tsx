@@ -1,10 +1,19 @@
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import type { Product } from '@/lib/types';
 import DashboardStats from './_components/DashboardStats';
 import ProductFilters from './_components/ProductFilters';
 import FabSpeedDial from './_components/FabSpeedDial';
+import { ImportSuccessToast } from './_components/ImportSuccessToast';
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ imported?: string }>;
+}) {
+  const { imported } = await searchParams;
+  const importedCount = imported ? Number(imported) : 0;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -33,6 +42,11 @@ export default async function Home() {
 
   return (
     <>
+      {importedCount > 0 && (
+        <Suspense fallback={null}>
+          <ImportSuccessToast count={importedCount} />
+        </Suspense>
+      )}
       <main className="pb-8">
         <DashboardStats total={total} lowStock={lowStock} categories={categories} />
         <ProductFilters products={list} />

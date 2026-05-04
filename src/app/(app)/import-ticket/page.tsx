@@ -371,17 +371,8 @@ export default function ImportTicketPage() {
   }
 
   if (imported !== null) {
-    return (
-      <main className="mx-auto max-w-[480px] px-5 py-8 flex flex-col gap-4">
-        <p className="text-lg font-semibold text-green-600">{imported} productos importados</p>
-        <button
-          onClick={() => router.push('/')}
-          className="rounded-lg bg-[var(--color-brand)] px-4 py-2 text-white font-semibold"
-        >
-          Volver al dashboard
-        </button>
-      </main>
-    );
+    router.push(`/?imported=${imported}`);
+    return null;
   }
 
   return (

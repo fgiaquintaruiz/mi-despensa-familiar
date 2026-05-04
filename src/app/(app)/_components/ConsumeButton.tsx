@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useTransition, useState } from 'react';
 import { consumeProductAction } from '../actions';
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
 
 export default function ConsumeButton({ productId, currentStock }: Props) {
   const [isPending, startTransition] = useTransition();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleConsume = () => {
     if (currentStock <= 0) return;
@@ -17,23 +18,31 @@ export default function ConsumeButton({ productId, currentStock }: Props) {
     startTransition(async () => {
       const result = await consumeProductAction(productId);
       if (result.error) {
-        alert(result.error);
+        setErrorMsg(result.error ?? 'Error desconocido');
+        setTimeout(() => setErrorMsg(null), 3000);
       }
     });
   };
 
   return (
-    <button
-      onClick={handleConsume}
-      disabled={isPending || currentStock <= 0}
-      className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
-      aria-label="Consumir una unidad"
-    >
-      {isPending ? (
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
-      ) : (
-        <span className="text-xl font-bold">−</span>
+    <div className="relative">
+      <button
+        onClick={handleConsume}
+        disabled={isPending || currentStock <= 0}
+        className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+        aria-label="Consumir una unidad"
+      >
+        {isPending ? (
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+        ) : (
+          <span className="text-xl font-bold">−</span>
+        )}
+      </button>
+      {errorMsg && (
+        <p className="absolute left-1/2 -translate-x-1/2 top-full mt-1 whitespace-nowrap rounded bg-red-600 px-2 py-0.5 text-xs text-white shadow">
+          {errorMsg}
+        </p>
       )}
-    </button>
+    </div>
   );
 }

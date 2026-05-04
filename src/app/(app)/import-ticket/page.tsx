@@ -3,9 +3,11 @@
 import { useRef, useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
+import { PageHeader } from '../_components/PageHeader';
 import type { Category } from '@/lib/types';
 import { importTicketItemsAction } from '../actions';
 import { useOcr } from '@/lib/ocr/use-ocr';
+import { lookupBrand } from '@/lib/openfoodfacts';
 
 function ModeCTA({
   inputRef,
@@ -34,6 +36,7 @@ interface TicketItem {
   qty: number;
   price: number;
   category: Category;
+  brand?: string;
 }
 
 interface ItemRow extends TicketItem {
@@ -75,9 +78,36 @@ export default function ImportTicketPage() {
   const [autoDetected, setAutoDetected] = useState(false);
   /** Detected supermarket name, used in the summary card. */
   const [detectedStore, setDetectedStore] = useState<string | null>(null);
+  /** True while brand lookup requests are in flight. */
+  const [isEnrichingBrands, setIsEnrichingBrands] = useState(false);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ocr = useOcr();
+
+  /** Enriches each item's brand via Open Food Facts. Items without a brand are looked up in parallel. */
+  async function enrichItemsWithBrands(itemRows: ItemRow[]): Promise<void> {
+    setIsEnrichingBrands(true);
+    const results = await Promise.allSettled(
+      itemRows.map((row) =>
+        row.brand ? Promise.resolve(row.brand) : lookupBrand(row.name),
+      ),
+    );
+    // Build a name→brand map from the settled results to safely merge with current state.
+    const brandMap = new Map<string, string>();
+    itemRows.forEach((row, idx) => {
+      const result = results[idx];
+      if (result?.status === 'fulfilled' && result.value) {
+        brandMap.set(row.name, result.value);
+      }
+    });
+    setRows((prev) =>
+      prev.map((row) => {
+        const brand = brandMap.get(row.name);
+        return brand ? { ...row, brand } : row;
+      }),
+    );
+    setIsEnrichingBrands(false);
+  }
 
   /** Start the 3-second countdown. Cleans up any prior interval first. */
   function startCountdown() {
@@ -185,6 +215,7 @@ export default function ImportTicketPage() {
     const newRows = (data.items as TicketItem[]).map((item) => ({ ...item, selected: true }));
     setRows(newRows);
     setAutoDetected(false);
+    void enrichItemsWithBrands(newRows);
   }
 
   async function handleImageFile(file: File) {
@@ -230,6 +261,7 @@ export default function ImportTicketPage() {
         setAutoDetected(true);
         setDetectedStore(detectedSupermarket);
         startCountdown();
+        void enrichItemsWithBrands(newRows);
         return;
       }
 
@@ -239,6 +271,7 @@ export default function ImportTicketPage() {
 
     const newRows = (items as TicketItem[]).map((item) => ({ ...item, selected: true }));
     setRows(newRows);
+    void enrichItemsWithBrands(newRows);
 
     if (detectedSupermarket) {
       setAutoDetected(true);
@@ -266,6 +299,7 @@ export default function ImportTicketPage() {
     // Hint was used manually — no countdown, progressive disclosure only.
     setAutoDetected(false);
     setDetectedStore(hint);
+    void enrichItemsWithBrands(newRows);
   }
 
   async function handleManualSubmit() {
@@ -291,8 +325,10 @@ export default function ImportTicketPage() {
 
       setShowHintSelector(false);
       setSelectedHint(null);
-      setRows(items.map((item) => ({ ...item, selected: true })));
+      const newRows = items.map((item) => ({ ...item, selected: true }));
+      setRows(newRows);
       setAutoDetected(false);
+      void enrichItemsWithBrands(newRows);
     } catch {
       setImportError('Error al procesar el texto. Intentá de nuevo.');
     }
@@ -353,16 +389,10 @@ export default function ImportTicketPage() {
       <Suspense fallback={null}>
         <ModeCTA inputRef={inputRef} />
       </Suspense>
-      <button
-        onClick={() => router.back()}
-        className="mb-4 flex items-center gap-1 text-sm font-medium text-[var(--color-brand)] hover:opacity-75"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-        Volver
-      </button>
-      <h1 className="text-2xl font-extrabold text-[var(--color-brand)]">Importar ticket</h1>
+      <PageHeader
+        breadcrumbs={[{ label: 'Mi Despensa', href: '/' }]}
+        title="Importar ticket"
+      />
 
       <label className="cursor-pointer rounded-lg border-2 border-dashed border-[var(--color-brand)] px-4 py-6 text-center font-semibold text-[var(--color-brand)] flex flex-col items-center justify-center gap-2">
         <svg
@@ -468,6 +498,10 @@ export default function ImportTicketPage() {
 
       {rows.length > 0 && (
         <>
+          {isEnrichingBrands && (
+            <p className="text-xs text-gray-400">Buscando marcas...</p>
+          )}
+
           {/* Countdown banner — only when autoDetected and countdown is active */}
           {countdown !== null && (
             <div className="flex items-center justify-between rounded-xl border border-orange-300 bg-orange-100 px-4 py-3">
@@ -509,7 +543,15 @@ export default function ImportTicketPage() {
                   disabled={importing}
                   className="flex-1 rounded-lg bg-[var(--color-brand)] py-2 text-sm font-bold text-white disabled:opacity-50 active:opacity-80"
                 >
-                  {importing ? 'Importando...' : 'Importar todo'}
+                  {importing ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 inline mr-1" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                      Importando...
+                    </>
+                  ) : 'Importar todo'}
                 </button>
                 <button
                   onClick={() => {
@@ -547,7 +589,12 @@ export default function ImportTicketPage() {
                       onChange={() => toggleRow(idx)}
                       className="h-4 w-4 accent-[var(--color-brand)]"
                     />
-                    <span className="flex-1 text-sm font-medium">{row.name}</span>
+                    <span className="flex-1 text-sm font-medium">
+                      {row.name}
+                      {row.brand && (
+                        <span className="ml-1 text-xs font-normal text-gray-400">{row.brand}</span>
+                      )}
+                    </span>
                     <span className="text-xs text-gray-500">x{row.qty}</span>
                     <span className="text-xs text-gray-500">{row.price.toFixed(2)} €</span>
                     <span className="text-xs text-gray-400">{row.category}</span>
@@ -560,7 +607,15 @@ export default function ImportTicketPage() {
                 disabled={importing || rows.every((r) => !r.selected)}
                 className="rounded-lg bg-[var(--color-brand)] px-4 py-2 text-white font-semibold disabled:opacity-50"
               >
-                {importing ? 'Importando...' : 'Importar seleccionados'}
+                {importing ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 inline mr-1" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    Importando...
+                  </>
+                ) : 'Importar seleccionados'}
               </button>
             </>
           )}

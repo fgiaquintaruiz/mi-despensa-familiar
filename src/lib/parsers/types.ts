@@ -6,6 +6,7 @@ export interface ParsedTicketItem {
   unit: string;
   price: number;
   category: Category;
+  brand?: string;
 }
 
 export interface TicketParser {

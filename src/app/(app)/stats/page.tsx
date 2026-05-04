@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { CATEGORIES } from '@/lib/types';
 import StatsCharts from './_components/StatsCharts';
-import { PageHeader } from '../_components/PageHeader';
+import { PageHeader } from '@/app/(app)/_components/PageHeader';
 
 export const dynamic = 'force-dynamic';
 

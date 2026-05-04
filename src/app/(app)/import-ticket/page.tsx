@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
-import { PageHeader } from '../_components/PageHeader';
+import { PageHeader } from '@/app/(app)/_components/PageHeader';
 import type { Category } from '@/lib/types';
 import { importTicketItemsAction } from '../actions';
 import { useOcr } from '@/lib/ocr/use-ocr';

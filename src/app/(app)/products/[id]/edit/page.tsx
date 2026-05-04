@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import type { PriceHistoryEntry } from '@/lib/types';
 import EditForm from './edit-form';
-import { PageHeader } from '../../_components/PageHeader';
+import { PageHeader } from '@/app/(app)/_components/PageHeader';
 
 interface Props {
   params: Promise<{ id: string }>;

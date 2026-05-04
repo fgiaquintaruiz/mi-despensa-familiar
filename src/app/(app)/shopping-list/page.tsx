@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { CATEGORIES } from '@/lib/types';
 import ShareButton from '../_components/ShareButton';
 import { calculateShoppingList } from '@/lib/shopping-list';
-import { PageHeader } from '../_components/PageHeader';
+import { PageHeader } from '@/app/(app)/_components/PageHeader';
 
 export const dynamic = 'force-dynamic';
 

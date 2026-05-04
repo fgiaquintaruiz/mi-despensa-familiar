@@ -56,7 +56,7 @@ describe('AddProductSheet', () => {
 
   it('renders the FAB with "+" label', () => {
     render(<AddProductSheet />);
-    expect(screen.getByRole('button', { name: /\+/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /agregar producto/i })).toBeInTheDocument();
   });
 
   it('sheet is hidden by default', () => {
@@ -66,13 +66,13 @@ describe('AddProductSheet', () => {
 
   it('clicking the FAB opens the sheet and shows the form', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     expect(screen.getByRole('textbox', { name: /nombre/i })).toBeInTheDocument();
   });
 
   it('sheet renders all 6 category chips with correct labels', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     for (const cat of CATEGORIES) {
       expect(screen.getByText(categoryLabel(cat.key as Category))).toBeInTheDocument();
     }
@@ -80,7 +80,7 @@ describe('AddProductSheet', () => {
 
   it('clicking a category chip selects it', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     const chip = screen.getByText(categoryLabel('despensa'));
     fireEvent.click(chip);
     expect(chip.closest('button')).toHaveAttribute('aria-pressed', 'true');
@@ -88,7 +88,7 @@ describe('AddProductSheet', () => {
 
   it('clicking a second category chip deselects the first', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     const chip1 = screen.getByText(categoryLabel('despensa'));
     const chip2 = screen.getByText(categoryLabel('higiene'));
     fireEvent.click(chip1);
@@ -99,20 +99,20 @@ describe('AddProductSheet', () => {
 
   it('counter starts at 1', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     expect(screen.getByTestId('stock-counter')).toHaveTextContent('1');
   });
 
   it('clicking "+" on counter increments to 2', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Incrementar cantidad' }));
     expect(screen.getByTestId('stock-counter')).toHaveTextContent('2');
   });
 
   it('clicking "−" on counter decrements from 2 to 1', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Incrementar cantidad' }));
     fireEvent.click(screen.getByRole('button', { name: 'Decrementar cantidad' }));
     expect(screen.getByTestId('stock-counter')).toHaveTextContent('1');
@@ -120,27 +120,27 @@ describe('AddProductSheet', () => {
 
   it('counter does not go below 1', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Decrementar cantidad' }));
     expect(screen.getByTestId('stock-counter')).toHaveTextContent('1');
   });
 
   it('Guardar button is disabled when name is empty', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
   });
 
   it('Guardar button is disabled when category is not selected', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     fireEvent.change(screen.getByRole('textbox', { name: /nombre/i }), { target: { value: 'Leche' } });
     expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
   });
 
   it('Guardar button is enabled when name and category are set', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     fireEvent.change(screen.getByRole('textbox', { name: /nombre/i }), { target: { value: 'Leche' } });
     fireEvent.click(screen.getByText(categoryLabel('frescos')));
     expect(screen.getByRole('button', { name: 'Guardar' })).not.toBeDisabled();
@@ -148,14 +148,14 @@ describe('AddProductSheet', () => {
 
   it('clicking Cancelar closes the sheet', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(screen.queryByRole('textbox', { name: /nombre/i })).not.toBeInTheDocument();
   });
 
   it('Escanear código button is not shown when BarcodeDetector is not supported', () => {
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     expect(screen.queryByText(/escanear código/i)).not.toBeInTheDocument();
   });
 
@@ -169,7 +169,7 @@ describe('AddProductSheet', () => {
     });
 
     render(<AddProductSheet />);
-    fireEvent.click(screen.getByRole('button', { name: /\+/i }));
+    fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     expect(screen.getByText(/escanear código/i)).toBeInTheDocument();
   });
 });

@@ -199,4 +199,42 @@ A PAGAR                       5,18 €`;
     expect(detergente).toBeDefined();
     expect(detergente!.price).toBeCloseTo(4.49);
   });
+
+  it('parses heavily garbled OCR lines (leading/trailing noise, single space before price, missing €)', async () => {
+    // Real-world Tesseract output for an Aldi ticket photo:
+    //   "a PANELA BÍO d 1,99 € 3 : ha"  — leading "a ", trailing " d", noise after IVA group
+    //   "a. A PAR 1,94 o"               — leading "a. ", no € symbol, trailing " o"
+    const garbledText = `ALDI dos Hermanas Supermercados, S,L.U
+aldi.es
+
+a PANELA BÍO d 1,99 € 3 : ha
+a. A PAR 1,94 o
+
+A PAGAR                       3,93 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: garbledText });
+    expect(items).toHaveLength(2);
+
+    const panela = items.find((i) => i.name.toUpperCase().includes('PANELA'));
+    expect(panela).toBeDefined();
+    expect(panela!.price).toBeCloseTo(1.99);
+
+    const par = items.find((i) => i.price !== undefined && Math.abs(i.price - 1.94) < 0.01);
+    expect(par).toBeDefined();
+  });
+
+  it('does NOT match IVA percentage table data rows in lenient mode', async () => {
+    // Rows like " 4%   0,89   0,04   0,93" must still be skipped even with lenient regex
+    const textWithIvaTable = `ALDI SUPERMERCADOS S.L.U.
+
+PANELA BIO                    1,99 € 3
+
+IVA%   BASE IMP.   CUOTA IVA   TOTAL
+ 4%      0,89        0,04        0,93
+10%      1,99        0,20        2,19
+
+A PAGAR                       2,88 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text: textWithIvaTable });
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Panela Bio');
+  });
 });

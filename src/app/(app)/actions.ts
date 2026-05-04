@@ -328,6 +328,64 @@ export async function consumeProductAction(productId: string): Promise<{ error?:
   return {};
 }
 
+export async function restockProductAction(productId: string): Promise<{ error?: string }> {
+  if (!productId) {
+    return { error: 'ID del producto es obligatorio.' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'No autenticado' };
+  }
+
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) {
+    return { error: 'No se encontró el hogar' };
+  }
+
+  // 1. Fetch current product
+  const { data: product, error: fetchError } = await supabase
+    .from('products')
+    .select('id, current_stock, name')
+    .eq('id', productId)
+    .eq('household_id', membership.household_id)
+    .single();
+
+  if (fetchError || !product) {
+    return { error: 'Producto no encontrado' };
+  }
+
+  // 2. Increment stock
+  const { error: updateError } = await supabase
+    .from('products')
+    .update({ current_stock: product.current_stock + 1 })
+    .eq('id', productId);
+
+  if (updateError) {
+    return { error: updateError.message };
+  }
+
+  // 3. Log restock
+  await supabase.from('consumption_logs').insert({
+    product_id: productId,
+    qty: 1,
+    type: 'restock',
+  });
+
+  revalidatePath('/', 'layout');
+  return {};
+}
+
 export async function deleteProductAction(productId: string): Promise<{ error?: string }> {
   if (!productId) {
     return { error: 'ID del producto es obligatorio.' };

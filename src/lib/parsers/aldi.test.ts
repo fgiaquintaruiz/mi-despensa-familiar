@@ -212,14 +212,11 @@ a. A PAR 1,94 o
 
 A PAGAR                       3,93 €`;
     const items = await aldiParser.parse({ buffer: Buffer.from(''), text: garbledText });
-    expect(items).toHaveLength(2);
+    expect(items).toHaveLength(1);
 
     const panela = items.find((i) => i.name.toUpperCase().includes('PANELA'));
     expect(panela).toBeDefined();
     expect(panela!.price).toBeCloseTo(1.99);
-
-    const par = items.find((i) => i.price !== undefined && Math.abs(i.price - 1.94) < 0.01);
-    expect(par).toBeDefined();
   });
 
   // ---------------------------------------------------------------------------
@@ -267,6 +264,17 @@ A PAGAR                       0,89 €`;
     const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
     expect(items).toHaveLength(1);
     expect(items[0].name).toBe('Leche');
+  });
+
+  it('rejects "A Par" — no token has length >= 4', async () => {
+    // cleanOcrName strips leading "A " → "PAR" (len 3) — no token >= 4 chars, must be discarded
+    const text = `ALDI SUPERMERCADOS S.L.U.
+A PAR                         1,94 € 3
+PANELA BIO                    1,99 € 3
+A PAGAR                       3,93 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Panela Bio');
   });
 
   it('does NOT match IVA percentage table data rows in lenient mode', async () => {

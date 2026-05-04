@@ -151,6 +151,7 @@ function cleanOcrName(name: string): string {
  *   1. Fewer than 3 alphanumeric characters in total (e.g. "A.", "B")
  *   2. Pure number after trim (e.g. "3", "42")
  *   3. Every space-separated token has length ≤ 1 (e.g. "A B", "X Y Z")
+ *   4. No token has length ≥ 4 (e.g. "Par", "A B C")
  *
  * Existing structural checks (alnum ratio, etc.) are preserved by the caller.
  */
@@ -167,6 +168,9 @@ function looksLikeProductName(name: string): boolean {
   // Rule 3: all tokens are single characters
   const tokens = trimmed.split(/\s+/);
   if (tokens.every((t) => t.length <= 1)) return false;
+
+  // Rule 4: at least one token must have >= 4 chars
+  if (!tokens.some((t) => t.length >= 4)) return false;
 
   return true;
 }

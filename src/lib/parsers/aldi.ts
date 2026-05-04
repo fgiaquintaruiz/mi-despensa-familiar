@@ -146,6 +146,31 @@ function cleanOcrName(name: string): string {
   return cleaned.trim() || name.trim(); // fall back to original if cleaning empties the string
 }
 
+/**
+ * Returns false when a cleaned product name is clearly an OCR artefact:
+ *   1. Fewer than 3 alphanumeric characters in total (e.g. "A.", "B")
+ *   2. Pure number after trim (e.g. "3", "42")
+ *   3. Every space-separated token has length ≤ 1 (e.g. "A B", "X Y Z")
+ *
+ * Existing structural checks (alnum ratio, etc.) are preserved by the caller.
+ */
+function looksLikeProductName(name: string): boolean {
+  const trimmed = name.trim();
+
+  // Rule 1: fewer than 3 alnum characters total
+  const alnumCount = (trimmed.match(/[a-z0-9áéíóúüñ]/gi) ?? []).length;
+  if (alnumCount < 3) return false;
+
+  // Rule 2: pure number
+  if (/^\d+$/.test(trimmed)) return false;
+
+  // Rule 3: all tokens are single characters
+  const tokens = trimmed.split(/\s+/);
+  if (tokens.every((t) => t.length <= 1)) return false;
+
+  return true;
+}
+
 function extractItems(text: string): ParsedTicketItem[] {
   const lines = text.split('\n');
   const items: ParsedTicketItem[] = [];
@@ -159,6 +184,7 @@ function extractItems(text: string): ParsedTicketItem[] {
     if (!match) continue;
 
     const rawName = cleanOcrName(match[1].trim());
+    if (!looksLikeProductName(rawName)) continue;
     const price = parseEuro(match[2]);
 
     items.push({

@@ -222,6 +222,53 @@ A PAGAR                       3,93 €`;
     expect(par).toBeDefined();
   });
 
+  // ---------------------------------------------------------------------------
+  // Name validation — looksLikeProductName guards
+  // ---------------------------------------------------------------------------
+
+  it('rejects single-char name "A."', async () => {
+    // After cleanOcrName "A." has only 1 alnum character — must be discarded
+    const text = `ALDI SUPERMERCADOS S.L.U.
+A.                            0,50 € 3
+PANELA BIO                    1,99 € 3
+A PAGAR                       2,49 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Panela Bio');
+  });
+
+  it('rejects all-single-char tokens "A B"', async () => {
+    // All tokens are length 1 — must be discarded
+    const text = `ALDI SUPERMERCADOS S.L.U.
+A B                           0,50 € 3
+PANELA BIO                    1,99 € 3
+A PAGAR                       2,49 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Panela Bio');
+  });
+
+  it('rejects pure number "3"', async () => {
+    // Pure numeric name must be discarded
+    const text = `ALDI SUPERMERCADOS S.L.U.
+3                             0,50 € 3
+PANELA BIO                    1,99 € 3
+A PAGAR                       2,49 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Panela Bio');
+  });
+
+  it('keeps valid short name "Leche"', async () => {
+    // 5-char single-token name must be accepted
+    const text = `ALDI SUPERMERCADOS S.L.U.
+LECHE                         0,89 € 1
+A PAGAR                       0,89 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Leche');
+  });
+
   it('does NOT match IVA percentage table data rows in lenient mode', async () => {
     // Rows like " 4%   0,89   0,04   0,93" must still be skipped even with lenient regex
     const textWithIvaTable = `ALDI SUPERMERCADOS S.L.U.

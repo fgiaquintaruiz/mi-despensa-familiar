@@ -37,6 +37,22 @@ const ITEM_REGEX = /^(?:[^0-9]{0,4})?(\d+)\s+(.+?)\s+(\d+,\d{2})(?:\s+(\d+,\d{2}
 // Bug 3 fix: weight-sold items — format: "[noise] KILOS ko|kg UNIT_PRICE €/kg TOTAL_PRICE"
 const WEIGHT_ITEM_REGEX = /^(?:[^0-9]{0,4})?(\d+[,.]\d+)\s+k[og]?\s+(\d+[,.]\d+)\s+[€E]\/kg/i;
 
+// Bug 2 new fix: no-qty items — format: NOISE? NAME PRICE (no quantity, assume qty=1)
+// Noise prefix: up to 4 letters followed by a space (e.g. "MU ", "MAN ").
+// Name must start with uppercase letter (filters pure noise), allows digits (e.g. "P-4").
+// Price anchored at end of line.
+const NO_QTY_ITEM_REGEX = /^(?:[A-Za-z]{1,4}\s+)?([A-ZÁÉÍÓÚ][A-Za-z0-9áéíóúÁÉÍÓÚ\s\-]+?)\s+(\d+,\d{2})$/;
+
+/**
+ * Validates a candidate prevName string.
+ * Returns true if the name is meaningful: ≥4 chars total AND contains at
+ * least one letter-only sequence ≥3 chars.
+ */
+function isValidName(name: string): boolean {
+  if (name.length < 4) return false;
+  return /[A-Za-záéíóúüñÁÉÍÓÚÜÑ]{3,}/.test(name);
+}
+
 function parseEuro(value: string): number {
   return parseFloat(value.replace(',', '.'));
 }
@@ -65,11 +81,10 @@ function extractItems(text: string): ParsedTicketItem[] {
       // qty = kilos (replace comma with dot), price = unit price (€/kg)
       const qty = parseFloat(weightMatch[1].replace(',', '.'));
       const price = parseEuro(weightMatch[2]);
-      // name comes from the previous line (the product name line, e.g. "1 BANANA")
-      const name = prevName ?? '';
-      if (name) {
-        items.push({ name, qty, unit: 'kg', price, category: mapCategory(name) });
-      }
+      // Bug 1 fix: validate prevName — reject garbage like "Ns" that fails length/letter check
+      const rawName = prevName ?? '';
+      const name = isValidName(rawName) ? rawName : '(Producto por peso)';
+      items.push({ name, qty, unit: 'kg', price, category: mapCategory(name) });
       prevName = null;
       continue;
     }
@@ -80,7 +95,27 @@ function extractItems(text: string): ParsedTicketItem[] {
       // Capture it as prevName so the weight line below can claim it.
       // A name-only line looks like: optional qty + words, no price at the end.
       const nameOnlyMatch = /^(?:[^0-9]{0,4})?(?:\d+\s+)?([A-Za-záéíóúüñÁÉÍÓÚÜÑ][A-Za-z0-9áéíóúüñÁÉÍÓÚÜÑ\s\-]+)$/.exec(trimmed);
-      prevName = nameOnlyMatch ? nameOnlyMatch[1].trim() : null;
+      if (nameOnlyMatch) {
+        prevName = nameOnlyMatch[1].trim();
+        continue;
+      }
+
+      // Bug 2 new fix: no-qty item fallback (e.g. "MU MOUSSE CCO P-4 1,20", "MAN EMPANADA ATUN 3,60")
+      // Guard: skip if this looks like a weight line (already handled above, but be safe)
+      const noQtyMatch = NO_QTY_ITEM_REGEX.exec(trimmed);
+      if (noQtyMatch && noQtyMatch[1].trim().length >= 4) {
+        const name = noQtyMatch[1].trim();
+        items.push({
+          name,
+          qty: 1,
+          unit: '',
+          price: parseEuro(noQtyMatch[2]),
+          category: mapCategory(name),
+        });
+        prevName = name;
+      } else {
+        prevName = null;
+      }
       continue;
     }
 

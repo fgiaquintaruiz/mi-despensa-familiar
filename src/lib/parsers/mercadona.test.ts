@@ -130,4 +130,56 @@ TOTAL (€) 1,35`;
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: NOISY_OCR_TEXT });
     expect(items.every((i) => i.name.trim().length > 0)).toBe(true);
   });
+
+  // Bug 1 new — garbage prevName ("U E Ns") must NOT be used as product name
+  it('weight item with garbage prevName ("U E Ns") falls back to "(Producto por peso)"', async () => {
+    const garbagePrevNameText = `MERCADONA, S.A.
+Descripción P. Unit Importe
+U E Ns
+0,890 ko 1,55 €/kg 1,38
+TARJETA BANCARIA 1,38`;
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: garbagePrevNameText });
+    const weightItem = items.find((i) => Math.abs(i.qty - 0.89) < 0.01);
+    expect(weightItem).toBeDefined();
+    expect(weightItem?.name).toBe('(Producto por peso)');
+  });
+
+  // Bug 1 new — valid prevName ("1 BANANA") should be captured correctly
+  it('weight item with valid prevName ("1 BANANA") uses "BANANA" as name', async () => {
+    const validPrevNameText = `MERCADONA, S.A.
+Descripción P. Unit Importe
+1 BANANA
+0,890 ko 1,55 €/kg 1,38
+TARJETA BANCARIA 1,38`;
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: validPrevNameText });
+    const banana = items.find((i) => i.name.toUpperCase().includes('BANANA'));
+    expect(banana).toBeDefined();
+    expect(banana?.name).toBe('BANANA');
+    expect(banana?.qty).toBeCloseTo(0.89);
+  });
+
+  // Bug 2 new — no-qty item: "MU MOUSSE CCO P-4 1,20" → qty=1, name="MOUSSE CCO P-4"
+  it('parses no-qty item "MU MOUSSE CCO P-4 1,20" with qty=1 and name="MOUSSE CCO P-4"', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: NOISY_OCR_TEXT });
+    const mousse = items.find((i) => i.name.toUpperCase().includes('MOUSSE'));
+    expect(mousse).toBeDefined();
+    expect(mousse?.qty).toBe(1);
+    expect(mousse?.price).toBeCloseTo(1.2);
+    expect(mousse?.name).toBe('MOUSSE CCO P-4');
+  });
+
+  // Bug 2 new — no-qty item: "MAN EMPANADA ATUN 3,60" → qty=1, name="EMPANADA ATUN"
+  it('parses no-qty item "MAN EMPANADA ATUN 3,60" with qty=1 and name="EMPANADA ATUN"', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: NOISY_OCR_TEXT });
+    const empanada = items.find((i) => i.name.toUpperCase().includes('EMPANADA ATUN'));
+    expect(empanada).toBeDefined();
+    expect(empanada?.qty).toBe(1);
+    expect(empanada?.price).toBeCloseTo(3.6);
+  });
+
+  // Full OCR with all items → at least 6 items parsed
+  it('full NOISY_OCR_TEXT parses at least 6 items', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: NOISY_OCR_TEXT });
+    expect(items.length).toBeGreaterThanOrEqual(6);
+  });
 });

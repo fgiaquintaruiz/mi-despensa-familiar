@@ -66,13 +66,6 @@ describe('BudgetForm', () => {
   });
 
   it('shows inline error when action returns error state', () => {
-    vi.mock('react', async (importOriginal) => {
-      const actual = await importOriginal<typeof import('react')>();
-      return {
-        ...actual,
-        useActionState: (action: unknown, _: unknown) => [{ error: 'El monto debe ser mayor a 0.' }, action, false],
-      };
-    });
     // Re-render with error state mock
     render(<BudgetForm />);
     // The component should display error text when state.error exists

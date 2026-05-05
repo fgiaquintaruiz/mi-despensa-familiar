@@ -1,22 +1,21 @@
 'use client';
 
-import { useState } from 'react';
-import type { ShoppingTransaction, TransactionItem } from '@/lib/types';
+import React, { useState } from 'react';
+import type { BudgetCurrency, ShoppingTransaction, TransactionItem } from '@/lib/types';
+import { formatAmount } from '@/lib/currency';
 import { getTransactionItemsAction } from '../actions';
 
 interface TransactionListProps {
   transactions: ShoppingTransaction[];
   budgetId: string;
+  currency: BudgetCurrency;
 }
 
-function formatAmount(amount: number): string {
-  return `$${new Intl.NumberFormat('es-AR').format(Math.round(amount))}`;
-}
-
-export default function TransactionList({ transactions }: TransactionListProps) {
+export default function TransactionList({ transactions, currency }: TransactionListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [itemsCache, setItemsCache] = useState<Map<string, TransactionItem[]>>(new Map());
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [errorCache, setErrorCache] = useState<Map<string, string>>(new Map());
 
   if (transactions.length === 0) {
     return (
@@ -37,7 +36,11 @@ export default function TransactionList({ transactions }: TransactionListProps) 
     if (!itemsCache.has(tx.id)) {
       setLoadingId(tx.id);
       const result = await getTransactionItemsAction(tx.id);
-      setItemsCache((prev) => new Map(prev).set(tx.id, result.data ?? []));
+      if (result.error) {
+        setErrorCache((prev) => new Map(prev).set(tx.id, result.error!));
+      } else {
+        setItemsCache((prev) => new Map(prev).set(tx.id, result.data ?? []));
+      }
       setLoadingId(null);
     }
   }
@@ -55,10 +58,12 @@ export default function TransactionList({ transactions }: TransactionListProps) 
         </thead>
         <tbody className="divide-y divide-gray-100">
           {transactions.map((tx) => (
-            <>
+            <React.Fragment key={tx.id}>
               <tr
-                key={tx.id}
                 onClick={() => handleRowClick(tx)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { handleRowClick(tx); } }}
+                role="button"
+                tabIndex={0}
                 className="cursor-pointer hover:bg-gray-50"
                 aria-expanded={expandedId === tx.id}
               >
@@ -67,7 +72,7 @@ export default function TransactionList({ transactions }: TransactionListProps) 
                   {tx.store_name ?? '(Sin tienda)'}
                 </td>
                 <td className="px-4 py-3 text-right font-semibold text-gray-800">
-                  {formatAmount(tx.total_amount)}
+                  {formatAmount(tx.total_amount, currency)}
                 </td>
                 <td className="px-4 py-3 text-right text-gray-500">{tx.item_count}</td>
               </tr>
@@ -76,13 +81,15 @@ export default function TransactionList({ transactions }: TransactionListProps) 
                   <td colSpan={4} className="bg-gray-50 px-4 py-3">
                     {loadingId === tx.id ? (
                       <p className="text-xs text-gray-400">Cargando items...</p>
+                    ) : errorCache.has(tx.id) ? (
+                      <p className="text-sm text-red-500">Error al cargar items</p>
                     ) : (
-                      <ItemsDetail items={itemsCache.get(tx.id) ?? []} />
+                      <ItemsDetail items={itemsCache.get(tx.id) ?? []} currency={currency} />
                     )}
                   </td>
                 </tr>
               )}
-            </>
+            </React.Fragment>
           ))}
         </tbody>
       </table>
@@ -90,7 +97,7 @@ export default function TransactionList({ transactions }: TransactionListProps) 
   );
 }
 
-function ItemsDetail({ items }: { items: TransactionItem[] }) {
+function ItemsDetail({ items, currency }: { items: TransactionItem[]; currency: BudgetCurrency }) {
   if (items.length === 0) {
     return <p className="text-xs text-gray-400">Sin items registrados.</p>;
   }
@@ -106,7 +113,7 @@ function ItemsDetail({ items }: { items: TransactionItem[] }) {
             )}
           </span>
           <span className="font-medium">
-            {item.quantity} × {formatAmount(item.unit_price)} = {formatAmount(item.line_total)}
+            {item.quantity} × {formatAmount(item.unit_price, currency)} = {formatAmount(item.line_total, currency)}
           </span>
         </li>
       ))}

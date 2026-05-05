@@ -97,7 +97,7 @@ export default async function BudgetPage() {
       </div>
 
       {/* Transaction List */}
-      <TransactionList transactions={transactions} budgetId={summary.budget.id} />
+      <TransactionList transactions={transactions} budgetId={summary.budget.id} currency={summary.currency} />
     </main>
   );
 }

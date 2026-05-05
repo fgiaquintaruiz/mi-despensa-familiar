@@ -36,19 +36,19 @@ describe('TransactionList', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('shows "Sin compras" when transactions list is empty', () => {
-    render(<TransactionList transactions={[]} budgetId="b-1" />);
+    render(<TransactionList transactions={[]} budgetId="b-1" currency="EUR" />);
     expect(screen.getByText(/sin compras/i)).toBeInTheDocument();
   });
 
   it('renders both transactions in the list', () => {
-    render(<TransactionList transactions={mockTransactions} budgetId="b-1" />);
+    render(<TransactionList transactions={mockTransactions} budgetId="b-1" currency="USD" />);
     expect(screen.getByText('Carrefour')).toBeInTheDocument();
-    expect(screen.getByText('$420')).toBeInTheDocument();
-    expect(screen.getByText('$850')).toBeInTheDocument();
+    expect(screen.getByText('$420.00')).toBeInTheDocument();
+    expect(screen.getByText('$850.00')).toBeInTheDocument();
   });
 
   it('shows "(Sin tienda)" when store_name is null', () => {
-    render(<TransactionList transactions={mockTransactions} budgetId="b-1" />);
+    render(<TransactionList transactions={mockTransactions} budgetId="b-1" currency="EUR" />);
     expect(screen.getByText(/sin tienda/i)).toBeInTheDocument();
   });
 
@@ -61,7 +61,7 @@ describe('TransactionList', () => {
       ],
     });
 
-    render(<TransactionList transactions={mockTransactions} budgetId="b-1" />);
+    render(<TransactionList transactions={mockTransactions} budgetId="b-1" currency="EUR" />);
 
     const carrefourRow = screen.getByText('Carrefour').closest('tr') ?? screen.getByText('Carrefour').closest('[role="row"]');
     // Click to expand
@@ -76,7 +76,7 @@ describe('TransactionList', () => {
     const { getTransactionItemsAction } = await import('../actions');
     vi.mocked(getTransactionItemsAction).mockResolvedValue({ data: [] });
 
-    render(<TransactionList transactions={mockTransactions} budgetId="b-1" />);
+    render(<TransactionList transactions={mockTransactions} budgetId="b-1" currency="EUR" />);
 
     fireEvent.click(screen.getByText('Carrefour'));
     await waitFor(() => expect(getTransactionItemsAction).toHaveBeenCalledTimes(1));
@@ -97,7 +97,7 @@ describe('TransactionList', () => {
     });
     vi.mocked(getTransactionItemsAction).mockReturnValue(pending);
 
-    render(<TransactionList transactions={mockTransactions} budgetId="b-1" />);
+    render(<TransactionList transactions={mockTransactions} budgetId="b-1" currency="EUR" />);
     fireEvent.click(screen.getByText('Carrefour'));
 
     // Loading state must be shown immediately while the promise is pending
@@ -129,7 +129,7 @@ describe('TransactionList', () => {
       ],
     });
 
-    render(<TransactionList transactions={mockTransactions} budgetId="b-1" />);
+    render(<TransactionList transactions={mockTransactions} budgetId="b-1" currency="EUR" />);
     fireEvent.click(screen.getByText('Carrefour'));
 
     await waitFor(() => {
@@ -158,7 +158,7 @@ describe('TransactionList', () => {
       ],
     });
 
-    render(<TransactionList transactions={mockTransactions} budgetId="b-1" />);
+    render(<TransactionList transactions={mockTransactions} budgetId="b-1" currency="EUR" />);
     fireEvent.click(screen.getByText('Carrefour'));
 
     await waitFor(() => {

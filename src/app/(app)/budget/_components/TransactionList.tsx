@@ -7,7 +7,6 @@ import { getTransactionItemsAction } from '../actions';
 
 interface TransactionListProps {
   transactions: ShoppingTransaction[];
-  budgetId: string;
   currency: BudgetCurrency;
 }
 

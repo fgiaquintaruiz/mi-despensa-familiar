@@ -12,7 +12,10 @@ export default function BarcodeScanner({ onScanned, onClose }: Props) {
   const { videoRef, startScan, stopScan } = useBarcodeScanner(onScanned);
 
   useEffect(() => {
-    startScan();
+    startScan().catch(() => {
+      stopScan();
+      onClose();
+    });
     return () => stopScan();
   }, []);
 

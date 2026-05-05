@@ -46,12 +46,7 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
   const [brand, setBrand] = useState('');
   const [price, setPrice] = useState(0);
   const [barcode, setBarcode] = useState('');
-  const [expiresDay, setExpiresDay] = useState('');
-  const [expiresMonth, setExpiresMonth] = useState('');
-  const [expiresYear, setExpiresYear] = useState('');
-  const expiresAt = expiresDay && expiresMonth && expiresYear
-    ? `${expiresYear.padStart(4,'0')}-${expiresMonth.padStart(2,'0')}-${expiresDay.padStart(2,'0')}`
-    : '';
+  const [expiresAt, setExpiresAt] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [autoSaveCountdown, setAutoSaveCountdown] = useState<number | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -92,9 +87,7 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
         setSelectedCategory(null);
         setStock(1);
         setBarcode('');
-        setExpiresDay('');
-        setExpiresMonth('');
-        setExpiresYear('');
+        setExpiresAt('');
         router.refresh();
       }
       return result;
@@ -111,9 +104,7 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
     setSelectedCategory(null);
     setStock(1);
     setBarcode('');
-    setExpiresDay('');
-    setExpiresMonth('');
-    setExpiresYear('');
+    setExpiresAt('');
   }
 
   async function handleBarcodeScanned(scannedBarcode: string) {
@@ -134,6 +125,7 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
           if (prev === null || prev <= 1) {
             clearInterval(countdownRef.current!);
             countdownRef.current = null;
+            // defer requestSubmit outside React's state-updater batch
             setTimeout(() => formRef.current?.requestSubmit(), 0);
             return null;
           }
@@ -160,9 +152,10 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
 
       {open && (
         <>
-          <div
+          <button
+            type="button"
             className="fixed inset-0 bg-black/40"
-            aria-hidden="true"
+            aria-label="Cerrar"
             onClick={handleClose}
           />
 
@@ -295,11 +288,12 @@ export default function AddProductSheet({ open: openProp, onClose }: AddProductS
                 <p className="mb-1 block text-sm font-medium text-gray-700">
                   Fecha de vencimiento <span className="font-normal text-gray-400">(opcional)</span>
                 </p>
-                <div className="flex gap-2">
-                  <input type="number" min={1} max={31} placeholder="DD" value={expiresDay} onChange={e => setExpiresDay(e.target.value)} className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]" />
-                  <input type="number" min={1} max={12} placeholder="MM" value={expiresMonth} onChange={e => setExpiresMonth(e.target.value)} className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]" />
-                  <input type="number" min={2024} max={2099} placeholder="AAAA" value={expiresYear} onChange={e => setExpiresYear(e.target.value)} className="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]" />
-                </div>
+                <input
+                  type="date"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+                />
               </div>
 
               {state?.error && (

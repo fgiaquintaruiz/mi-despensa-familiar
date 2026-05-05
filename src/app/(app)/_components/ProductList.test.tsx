@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ProductList from './ProductList';
 import type { Product } from '@/lib/types';
@@ -8,6 +8,18 @@ vi.mock('./DeleteProductButton', () => ({
     <button data-testid={`delete-${productId}`} aria-label={`Eliminar ${productName}`}>
       Eliminar
     </button>
+  ),
+}));
+
+vi.mock('./ConsumeButton', () => ({
+  default: ({ productId }: { productId: string }) => (
+    <button data-testid={`consume-${productId}`}>Consumir</button>
+  ),
+}));
+
+vi.mock('./RestockButton', () => ({
+  default: ({ productId }: { productId: string }) => (
+    <button data-testid={`restock-${productId}`}>Reponer</button>
   ),
 }));
 
@@ -29,10 +41,18 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
     min_stock: 2,
     price: 0,
     barcode: null,
+    expires_at: null,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
   };
+}
+
+/** Returns an ISO date string offset from today by `deltaDays`. */
+function isoDateOffsetDays(deltaDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + deltaDays);
+  return d.toISOString();
 }
 
 describe('ProductList', () => {
@@ -89,5 +109,55 @@ describe('ProductList', () => {
     render(<ProductList products={products} />);
     expect(screen.getByTestId('delete-p-1')).toBeInTheDocument();
     expect(screen.getByTestId('delete-p-2')).toBeInTheDocument();
+  });
+
+  it('renders the brand when present', () => {
+    const product = makeProduct({ brand: 'La Abundancia' });
+    render(<ProductList products={[product]} />);
+    expect(screen.getByText('La Abundancia')).toBeInTheDocument();
+  });
+
+  it('does not render a brand element when brand is null', () => {
+    const product = makeProduct({ brand: null });
+    render(<ProductList products={[product]} />);
+    expect(screen.queryByText('La Abundancia')).not.toBeInTheDocument();
+  });
+
+  it('does not show any expiry badge when expires_at is null', () => {
+    const product = makeProduct({ expires_at: null });
+    render(<ProductList products={[product]} />);
+    expect(screen.queryByText(/vence/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/vencido/i)).not.toBeInTheDocument();
+  });
+
+  it('shows "Vencido" badge for a product that expired in the past', () => {
+    const product = makeProduct({ expires_at: isoDateOffsetDays(-5) });
+    render(<ProductList products={[product]} />);
+    expect(screen.getByText('Vencido')).toBeInTheDocument();
+  });
+
+  it('shows expiry badge with days remaining when expires_at is within 3 days', () => {
+    const product = makeProduct({ expires_at: isoDateOffsetDays(2) });
+    render(<ProductList products={[product]} />);
+    expect(screen.getByText(/vence en \d+d/i)).toBeInTheDocument();
+  });
+
+  it('shows expiry badge with days remaining when expires_at is within 7 days', () => {
+    const product = makeProduct({ expires_at: isoDateOffsetDays(5) });
+    render(<ProductList products={[product]} />);
+    expect(screen.getByText(/vence en \d+d/i)).toBeInTheDocument();
+  });
+
+  it('shows a formatted date badge when expires_at is more than 7 days away', () => {
+    const product = makeProduct({ expires_at: isoDateOffsetDays(30) });
+    render(<ProductList products={[product]} />);
+    // label starts with "Vence " followed by a locale date (not "Vencido" and not "Vence en Xd")
+    expect(screen.getByText(/^vence \d+\/\d+/i)).toBeInTheDocument();
+  });
+
+  it('does not show low-stock badge when min_stock is 0', () => {
+    const product = makeProduct({ current_stock: 0, min_stock: 0 });
+    render(<ProductList products={[product]} />);
+    expect(screen.queryByText('stock bajo')).not.toBeInTheDocument();
   });
 });

@@ -318,3 +318,56 @@ describe('mercadonaParser.parse — ACTUAL OCR from docs/mercadona corto.jpeg', 
     expect(weightItem?.name).not.toContain('EMPANADA');
   });
 });
+
+// ---------------------------------------------------------------------------
+// mercadona.ts line 76 — empty line inside product section is skipped
+// ---------------------------------------------------------------------------
+
+describe('mercadonaParser.parse — empty lines inside section', () => {
+  it('skips empty lines between products without crashing (line 76 coverage)', async () => {
+    const textWithEmptyLines = `MERCADONA, S.A.
+Descripción P. Unit Importe
+2 PAN H BRIOCHE 1,10 2,20
+
+1 CEBOLLA 2 KG 3,90
+
+TOTAL (€) 6,10`;
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: textWithEmptyLines });
+    expect(items).toHaveLength(2);
+    const pan = items.find((i) => i.name === 'PAN H BRIOCHE');
+    expect(pan?.qty).toBe(2);
+    const cebolla = items.find((i) => i.name === 'CEBOLLA 2 KG');
+    expect(cebolla?.price).toBeCloseTo(3.9);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mercadona.ts line 69 — early return [] branch coverage
+// extractItems returns [] when startIdx === -1 OR endIdx === -1
+// ---------------------------------------------------------------------------
+
+describe('mercadonaParser.parse — missing header/footer returns empty array', () => {
+  it('returns [] when "Descripción" header line is missing (startIdx === -1)', async () => {
+    // No "Descripción" line → startIdx will be -1 → early return []
+    const textWithoutHeader = `MERCADONA, S.A.
+1 PAN H BRIOCHE 1,10 2,20
+TOTAL (€) 2,20`;
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: textWithoutHeader });
+    expect(items).toEqual([]);
+  });
+
+  it('returns [] when end marker (TOTAL/TARJETA/EFECTIVO/CAMBIO) is missing (endIdx === -1)', async () => {
+    // No TOTAL/TARJETA/EFECTIVO/CAMBIO line → endIdx will be -1 → early return []
+    const textWithoutFooter = `MERCADONA, S.A.
+Descripción P. Unit Importe
+1 PAN H BRIOCHE 1,10 2,20
+1 CEBOLLA 2 KG 3,90`;
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: textWithoutFooter });
+    expect(items).toEqual([]);
+  });
+
+  it('returns [] for completely empty text', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: '' });
+    expect(items).toEqual([]);
+  });
+});

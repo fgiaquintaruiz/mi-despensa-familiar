@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import AddProductSheet from './AddProductSheet';
 import { CATEGORIES, categoryLabel } from '@/lib/types';
 import type { Category } from '@/lib/types';
@@ -14,37 +14,52 @@ const mockUseBarcodeScanner = vi.hoisted(() =>
   }),
 );
 
+const mockAddProductAction = vi.hoisted(() => vi.fn().mockResolvedValue({}));
+
 vi.mock('../actions', () => ({
-  addProductAction: vi.fn().mockResolvedValue({}),
+  addProductAction: mockAddProductAction,
 }));
 
+const mockRouterRefresh = vi.hoisted(() => vi.fn());
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: mockRouterRefresh }),
 }));
+
+const mockUseActionState = vi.hoisted(() =>
+  vi.fn().mockImplementation((action: unknown, initialState: unknown) => [initialState, action, false]),
+);
 
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>();
   return {
     ...actual,
-    useActionState: (action: unknown, initialState: unknown) => [initialState, action, false],
+    useActionState: mockUseActionState,
   };
 });
 
+const mockLookupBarcode = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+
 vi.mock('@/lib/barcode/open-food-facts', () => ({
-  lookupBarcode: vi.fn().mockResolvedValue(null),
+  lookupBarcode: mockLookupBarcode,
 }));
 
 vi.mock('@/lib/barcode/use-barcode-scanner', () => ({
   useBarcodeScanner: mockUseBarcodeScanner,
 }));
 
+const mockBarcodeScanner = vi.hoisted(() => vi.fn().mockReturnValue(null));
+
 vi.mock('./BarcodeScanner', () => ({
-  default: vi.fn().mockReturnValue(null),
+  default: mockBarcodeScanner,
 }));
 
 describe('AddProductSheet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseActionState.mockImplementation(
+      (action: unknown, initialState: unknown) => [initialState, action, false],
+    );
     mockUseBarcodeScanner.mockReturnValue({
       videoRef: { current: null },
       isSupported: false,
@@ -171,5 +186,170 @@ describe('AddProductSheet', () => {
     render(<AddProductSheet />);
     fireEvent.click(screen.getByRole('button', { name: /agregar producto/i }));
     expect(screen.getByText(/escanear código/i)).toBeInTheDocument();
+  });
+
+  // ── Controlled mode ──────────────────────────────────────────────
+
+  it('does not render the FAB when open prop is provided (controlled)', () => {
+    render(<AddProductSheet open={true} onClose={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /agregar producto/i })).not.toBeInTheDocument();
+  });
+
+  it('renders the sheet when open=true in controlled mode', () => {
+    render(<AddProductSheet open={true} onClose={vi.fn()} />);
+    expect(screen.getByRole('textbox', { name: /nombre/i })).toBeInTheDocument();
+  });
+
+  it('does not render the sheet when open=false in controlled mode', () => {
+    render(<AddProductSheet open={false} onClose={vi.fn()} />);
+    expect(screen.queryByRole('textbox', { name: /nombre/i })).not.toBeInTheDocument();
+  });
+
+  it('calls onClose when clicking Cancelar in controlled mode', () => {
+    const onClose = vi.fn();
+    render(<AddProductSheet open={true} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onClose when clicking the backdrop in controlled mode', () => {
+    const onClose = vi.fn();
+    render(<AddProductSheet open={true} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: /cerrar/i }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // ── Error state ──────────────────────────────────────────────────
+
+  it('shows error message when action returns an error', () => {
+    mockUseActionState.mockImplementation(() => [
+      { error: 'El producto ya existe.' },
+      vi.fn(),
+      false,
+    ]);
+    render(<AddProductSheet open={true} onClose={vi.fn()} />);
+    expect(screen.getByText('El producto ya existe.')).toBeInTheDocument();
+  });
+
+  // ── Successful form submission ────────────────────────────────────
+
+  it('closes and resets after a successful form action', async () => {
+    const onClose = vi.fn();
+    // Simulate action that returns no error and triggers close
+    mockUseActionState.mockImplementation(
+      (action: (prev: unknown, fd: FormData) => Promise<unknown>, initialState: unknown) => {
+        const wrappedAction = async (prev: unknown, fd: FormData) => {
+          const result = await action(prev, fd);
+          return result;
+        };
+        return [initialState, wrappedAction, false];
+      },
+    );
+    mockAddProductAction.mockResolvedValue({});
+
+    render(<AddProductSheet open={true} onClose={onClose} />);
+    // Fill required fields
+    fireEvent.change(screen.getByRole('textbox', { name: /nombre/i }), {
+      target: { value: 'Leche' },
+    });
+    fireEvent.click(screen.getByText(categoryLabel('frescos')));
+
+    await act(async () => {
+      fireEvent.submit(screen.getByRole('textbox', { name: /nombre/i }).closest('form')!);
+    });
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(mockRouterRefresh).toHaveBeenCalled();
+  });
+
+  // ── Barcode scan flow ────────────────────────────────────────────
+
+  it('clicking Escanear código opens the BarcodeScanner', () => {
+    mockUseBarcodeScanner.mockReturnValue({
+      videoRef: { current: null },
+      isSupported: true,
+      isScanning: false,
+      startScan: vi.fn().mockResolvedValue(undefined),
+      stopScan: vi.fn(),
+    });
+    render(<AddProductSheet open={true} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText(/escanear código/i));
+    expect(mockBarcodeScanner).toHaveBeenCalled();
+  });
+
+  it('lookupBarcode fills name and brand when a product is found after scan', async () => {
+    mockUseBarcodeScanner.mockReturnValue({
+      videoRef: { current: null },
+      isSupported: true,
+      isScanning: false,
+      startScan: vi.fn().mockResolvedValue(undefined),
+      stopScan: vi.fn(),
+    });
+
+    mockLookupBarcode.mockResolvedValue({
+      name: 'Coca Cola',
+      brand: 'Coca-Cola',
+      category: 'frescos' as Category,
+    });
+
+    // Capture the onScanned callback injected into BarcodeScanner
+    let capturedOnScanned: ((code: string) => Promise<void>) | null = null;
+    mockBarcodeScanner.mockImplementation(({ onScanned }: { onScanned: (code: string) => Promise<void> }) => {
+      capturedOnScanned = onScanned;
+      return null;
+    });
+
+    render(<AddProductSheet open={true} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText(/escanear código/i));
+
+    await act(async () => {
+      await capturedOnScanned!('1234567890');
+    });
+
+    expect(screen.getByRole('textbox', { name: /nombre/i })).toHaveValue('Coca Cola');
+    expect(screen.getByRole('textbox', { name: /marca/i })).toHaveValue('Coca-Cola');
+  });
+
+  it('lookupBarcode returns null — name is not populated', async () => {
+    mockUseBarcodeScanner.mockReturnValue({
+      videoRef: { current: null },
+      isSupported: true,
+      isScanning: false,
+      startScan: vi.fn().mockResolvedValue(undefined),
+      stopScan: vi.fn(),
+    });
+
+    mockLookupBarcode.mockResolvedValue(null);
+
+    let capturedOnScanned: ((code: string) => Promise<void>) | null = null;
+    mockBarcodeScanner.mockImplementation(({ onScanned }: { onScanned: (code: string) => Promise<void> }) => {
+      capturedOnScanned = onScanned;
+      return null;
+    });
+
+    render(<AddProductSheet open={true} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText(/escanear código/i));
+
+    await act(async () => {
+      await capturedOnScanned!('9999999999');
+    });
+
+    expect(screen.getByRole('textbox', { name: /nombre/i })).toHaveValue('');
+  });
+
+  // ── price and expiry inputs ──────────────────────────────────────
+
+  it('price field accepts numeric input', () => {
+    render(<AddProductSheet open={true} onClose={vi.fn()} />);
+    const priceInput = screen.getByLabelText(/precio/i);
+    fireEvent.change(priceInput, { target: { value: '3.99' } });
+    expect(priceInput).toHaveValue(3.99);
+  });
+
+  it('expiry date field accepts a date value', () => {
+    render(<AddProductSheet open={true} onClose={vi.fn()} />);
+    const dateInputEl = document.querySelector('input[type="date"]') as HTMLInputElement;
+    fireEvent.change(dateInputEl, { target: { value: '2025-12-31' } });
+    expect(dateInputEl).toHaveValue('2025-12-31');
   });
 });

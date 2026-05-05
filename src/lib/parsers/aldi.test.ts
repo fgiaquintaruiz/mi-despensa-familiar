@@ -292,4 +292,93 @@ A PAGAR                       2,88 €`;
     expect(items).toHaveLength(1);
     expect(items[0].name).toBe('Panela Bio');
   });
+
+  // ---------------------------------------------------------------------------
+  // cleanOcrName — fallback branch (line 146): cleaning empties the string
+  // ---------------------------------------------------------------------------
+
+  it('cleanOcrName fallback: name consisting only of a single leading letter falls back to original', async () => {
+    // "a." → leading-char removal strips everything → cleaned is empty → fallback to original name "a."
+    // The resulting raw name "a." has <3 alnum chars so looksLikeProductName rejects it.
+    // We just need to exercise the fallback path without crashing.
+    const text = `ALDI SUPERMERCADOS S.L.U.
+a.                            0,50 € 3
+PANELA BIO                    1,99 € 3
+A PAGAR                       2,49 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    // "a." is rejected by looksLikeProductName — only PANELA BIO survives
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Panela Bio');
+  });
+
+  it('cleanOcrName: single trailing letter is stripped and original name is used when result is empty', async () => {
+    // A name like "z" only — after stripping trailing single char "" is returned and fallback kicks in.
+    const text = `ALDI SUPERMERCADOS S.L.U.
+z                             0,50 € 3
+LECHE ENTERA 1L               0,89 € 1
+A PAGAR                       1,39 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    // "z" has only 1 alnum char, rejected by looksLikeProductName
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Leche Entera 1L');
+  });
+
+  // ---------------------------------------------------------------------------
+  // looksLikeProductName — rule 1: alnumCount < 3 (line 163)
+  // ---------------------------------------------------------------------------
+
+  it('looksLikeProductName rule 1: two-char name "AB" is rejected (alnumCount < 3)', async () => {
+    const text = `ALDI SUPERMERCADOS S.L.U.
+AB                            0,50 € 3
+PANELA BIO                    1,99 € 3
+A PAGAR                       2,49 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Panela Bio');
+  });
+
+  // ---------------------------------------------------------------------------
+  // looksLikeProductName — rule 2: pure number (line 166)
+  // Already covered by "rejects pure number 3" test but adding a multi-digit case
+  // ---------------------------------------------------------------------------
+
+  it('looksLikeProductName rule 2: pure 3-digit number "123" is rejected (passes rule 1, fails rule 2)', async () => {
+    // "123" has 3 alnum chars (passes rule 1) but is a pure number (rule 2 rejects)
+    const text = `ALDI SUPERMERCADOS S.L.U.
+123                           0,50 € 3
+PANELA BIO                    1,99 € 3
+A PAGAR                       2,49 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Panela Bio');
+  });
+
+  // ---------------------------------------------------------------------------
+  // looksLikeProductName — rule 3: all tokens single char (line 170)
+  // ---------------------------------------------------------------------------
+
+  it('looksLikeProductName rule 3: "A B C" (all single-char tokens) is rejected', async () => {
+    const text = `ALDI SUPERMERCADOS S.L.U.
+A B C                         0,50 € 3
+PANELA BIO                    1,99 € 3
+A PAGAR                       2,49 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Panela Bio');
+  });
+
+  // ---------------------------------------------------------------------------
+  // looksLikeProductName — rule 4: no token >= 4 chars (line 173)
+  // ---------------------------------------------------------------------------
+
+  it('looksLikeProductName rule 4: "Par Del" (no token >= 4 chars) is rejected', async () => {
+    // Both tokens have 3 chars → rule 4 fires
+    const text = `ALDI SUPERMERCADOS S.L.U.
+Par Del                       0,50 € 3
+PANELA BIO                    1,99 € 3
+A PAGAR                       2,49 €`;
+    const items = await aldiParser.parse({ buffer: Buffer.from(''), text });
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Panela Bio');
+  });
 });

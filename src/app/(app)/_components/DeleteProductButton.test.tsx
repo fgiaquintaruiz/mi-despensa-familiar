@@ -59,4 +59,16 @@ describe('DeleteProductButton', () => {
       expect(mockRefresh).toHaveBeenCalled();
     });
   });
+
+  it('shows error message when deleteProductAction returns an error', async () => {
+    vi.mocked(deleteProductAction).mockResolvedValue({ error: 'No autorizado' });
+    render(<DeleteProductButton productId="p-1" productName="Arroz" />);
+    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+    const confirmButtons = screen.getAllByRole('button', { name: /eliminar/i });
+    const confirmBtn = confirmButtons[confirmButtons.length - 1];
+    fireEvent.click(confirmBtn);
+    await waitFor(() => {
+      expect(screen.getByText('No autorizado')).toBeInTheDocument();
+    });
+  });
 });

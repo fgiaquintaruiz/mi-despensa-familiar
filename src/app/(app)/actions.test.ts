@@ -6,6 +6,7 @@ import {
   logoutAction,
   importTicketItemsAction,
   consumeProductAction,
+  restockProductAction,
 } from './actions';
 import { createClient } from '@/lib/supabase/server';
 
@@ -197,6 +198,396 @@ describe('logoutAction', () => {
 });
 
 // ---------------------------------------------------------------------------
+// addProductAction — additional branch coverage
+// ---------------------------------------------------------------------------
+
+describe('addProductAction — validation and error branches', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupSupabaseMock();
+  });
+
+  it('returns error when name is empty', async () => {
+    const fd = makeFormData({ name: '', category: 'frescos' });
+    const result = await addProductAction(undefined, fd);
+    expect(result.error).toBe('El nombre del producto es obligatorio.');
+  });
+
+  it('returns error when category is invalid', async () => {
+    const fd = makeFormData({ name: 'Leche', category: 'invalid-cat' });
+    const result = await addProductAction(undefined, fd);
+    expect(result.error).toBe('Categoría inválida.');
+  });
+
+  it('returns error when user is not authenticated', async () => {
+    setupSupabaseMock(null);
+    const fd = makeFormData({ name: 'Leche', category: 'frescos' });
+    const result = await addProductAction(undefined, fd);
+    expect(result.error).toBe('No autenticado');
+  });
+
+  it('returns DB error when product insert fails', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'duplicate key' } }));
+
+    const fd = makeFormData({ name: 'Leche', category: 'frescos' });
+    const result = await addProductAction(undefined, fd);
+    expect(result.error).toBe('duplicate key');
+  });
+
+  it('inserts price_history when price > 0 and product created successfully', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Insert product
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-1' }, error: null }))
+      // Price history insert
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    const fd = makeFormData({ name: 'Leche', category: 'frescos', price: '2.50' });
+    const result = await addProductAction(undefined, fd);
+    expect(result).toEqual({});
+    expect(mockFrom).toHaveBeenCalledWith('price_history');
+  });
+
+  it('does not insert price_history when price is 0', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-1' }, error: null }));
+
+    const fd = makeFormData({ name: 'Leche', category: 'frescos', price: '0' });
+    const result = await addProductAction(undefined, fd);
+    expect(result).toEqual({});
+    // price_history should NOT have been called
+    const priceHistoryCalls = mockFrom.mock.calls.filter((c: string[]) => c[0] === 'price_history');
+    expect(priceHistoryCalls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateProductAction — additional branch coverage
+// ---------------------------------------------------------------------------
+
+describe('updateProductAction — validation and error branches', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupSupabaseMock();
+  });
+
+  it('returns error when id is empty', async () => {
+    const fd = makeFormData({ id: '', name: 'Leche', category: 'frescos' });
+    const result = await updateProductAction(undefined, fd);
+    expect(result.error).toBe('ID del producto es obligatorio.');
+  });
+
+  it('returns error when name is empty', async () => {
+    const fd = makeFormData({ id: 'p-1', name: '', category: 'frescos' });
+    const result = await updateProductAction(undefined, fd);
+    expect(result.error).toBe('El nombre del producto es obligatorio.');
+  });
+
+  it('returns error when category is invalid', async () => {
+    const fd = makeFormData({ id: 'p-1', name: 'Leche', category: 'nope' });
+    const result = await updateProductAction(undefined, fd);
+    expect(result.error).toBe('Categoría inválida.');
+  });
+
+  it('returns error when user is not authenticated', async () => {
+    setupSupabaseMock(null);
+    const fd = makeFormData({ id: 'p-1', name: 'Leche', category: 'frescos' });
+    const result = await updateProductAction(undefined, fd);
+    expect(result.error).toBe('No autenticado');
+  });
+
+  it('returns DB error when update fails', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Fetch existing product
+      .mockImplementationOnce((resolve) => resolve({ data: { price: 1.5 }, error: null }))
+      // Update error
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'update failed' } }));
+
+    const fd = makeFormData({ id: 'p-1', name: 'Leche', category: 'frescos' });
+    const result = await updateProductAction(undefined, fd);
+    expect(result.error).toBe('update failed');
+  });
+
+  it('inserts price_history when price changes', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Fetch existing (price=1.50)
+      .mockImplementationOnce((resolve) => resolve({ data: { price: 1.5 }, error: null }))
+      // Update OK
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }))
+      // Price history insert
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    const fd = makeFormData({ id: 'p-1', name: 'Leche', category: 'frescos', price: '2.00' });
+    const result = await updateProductAction(undefined, fd);
+    expect(result).toEqual({});
+    expect(mockFrom).toHaveBeenCalledWith('price_history');
+  });
+
+  it('does not insert price_history when price is unchanged', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: { price: 2.0 }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    const fd = makeFormData({ id: 'p-1', name: 'Leche', category: 'frescos', price: '2' });
+    const result = await updateProductAction(undefined, fd);
+    expect(result).toEqual({});
+    const priceHistoryCalls = mockFrom.mock.calls.filter((c: string[]) => c[0] === 'price_history');
+    expect(priceHistoryCalls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// importTicketItemsAction — additional branch coverage
+// ---------------------------------------------------------------------------
+
+describe('importTicketItemsAction — error branches', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupSupabaseMock();
+  });
+
+  it('returns { imported: 0 } for empty items array', async () => {
+    const result = await importTicketItemsAction([]);
+    expect(result).toEqual({ imported: 0 });
+  });
+
+  it('returns error when user is not authenticated', async () => {
+    setupSupabaseMock(null);
+    const result = await importTicketItemsAction([{ name: 'Leche', qty: 1, price: 1.5, category: 'frescos' }]);
+    expect(result.error).toBe('No autenticado');
+    expect(result.imported).toBe(0);
+  });
+
+  it('returns error when membership not found', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null })); // no membership
+
+    const result = await importTicketItemsAction([{ name: 'Leche', qty: 1, price: 1.5, category: 'frescos' }]);
+    expect(result.error).toBe('No se encontró el hogar');
+    expect(result.imported).toBe(0);
+  });
+
+  it('skips item when update fails (continue branch)', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Existing products (Leche exists)
+      .mockImplementationOnce((resolve) => resolve({ data: [{ id: 'p-leche', name: 'Leche', current_stock: 1 }], error: null }))
+      // Update FAILS
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'update error' } }));
+
+    const result = await importTicketItemsAction([{ name: 'Leche', qty: 2, price: 1.5, category: 'frescos' }]);
+    // Item was skipped due to update error
+    expect(result.imported).toBe(0);
+  });
+
+  it('skips item when insert fails (continue branch)', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Existing products (empty)
+      .mockImplementationOnce((resolve) => resolve({ data: [], error: null }))
+      // Insert FAILS
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'insert error' } }));
+
+    const result = await importTicketItemsAction([{ name: 'Pan', qty: 1, price: 1.0, category: 'despensa' }]);
+    expect(result.imported).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// consumeProductAction — additional branch coverage
+// ---------------------------------------------------------------------------
+
+describe('consumeProductAction — additional branches', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupSupabaseMock();
+  });
+
+  it('returns error when productId is empty', async () => {
+    const result = await consumeProductAction('');
+    expect(result.error).toBe('ID del producto es obligatorio.');
+  });
+
+  it('returns error when user is not authenticated', async () => {
+    setupSupabaseMock(null);
+    const result = await consumeProductAction('p-1');
+    expect(result.error).toBe('No autenticado');
+  });
+
+  it('returns error when membership not found', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null })); // no membership
+
+    const result = await consumeProductAction('p-1');
+    expect(result.error).toBe('No se encontró el hogar');
+  });
+
+  it('returns error when product fetch fails', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Fetch product FAILS
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'not found' } }));
+
+    const result = await consumeProductAction('p-1');
+    expect(result.error).toBe('Producto no encontrado');
+  });
+
+  it('returns error when stock update fails', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Fetch product OK (stock=3)
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-1', current_stock: 3, min_stock: 0, name: 'Leche', unit: null }, error: null }))
+      // Update FAILS
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'update failed' } }));
+
+    const result = await consumeProductAction('p-1');
+    expect(result.error).toBe('update failed');
+  });
+
+  it('triggers low-stock notification when stock drops below min_stock', async () => {
+    // product: current_stock=2, min_stock=2 → after consume, newStock=1 < min_stock=2
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
+
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Fetch product (stock=2, min_stock=2)
+      .mockImplementationOnce((resolve) =>
+        resolve({ data: { id: 'p-1', current_stock: 2, min_stock: 2, name: 'Leche', unit: 'L' }, error: null }))
+      // Update OK
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }))
+      // Log consumption
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    const result = await consumeProductAction('p-1');
+    expect(result).toEqual({});
+    // fetch should have been called for the push notification
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy.mock.calls[0][0]).toContain('/api/push/send');
+
+    fetchSpy.mockRestore();
+  });
+
+  it('does not send notification when min_stock is 0 (feature disabled)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
+
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) =>
+        resolve({ data: { id: 'p-1', current_stock: 5, min_stock: 0, name: 'Leche', unit: null }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    await consumeProductAction('p-1');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// restockProductAction — additional branch coverage
+// ---------------------------------------------------------------------------
+
+describe('restockProductAction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupSupabaseMock();
+  });
+
+  it('returns error when productId is empty', async () => {
+    const result = await restockProductAction('');
+    expect(result.error).toBe('ID del producto es obligatorio.');
+  });
+
+  it('returns error when user is not authenticated', async () => {
+    setupSupabaseMock(null);
+    const result = await restockProductAction('p-1');
+    expect(result.error).toBe('No autenticado');
+  });
+
+  it('returns error when membership not found', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+    const result = await restockProductAction('p-1');
+    expect(result.error).toBe('No se encontró el hogar');
+  });
+
+  it('returns error when product fetch fails', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'not found' } }));
+    const result = await restockProductAction('p-1');
+    expect(result.error).toBe('Producto no encontrado');
+  });
+
+  it('returns error when stock update fails', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-1', current_stock: 3, name: 'Leche' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'update failed' } }));
+    const result = await restockProductAction('p-1');
+    expect(result.error).toBe('update failed');
+  });
+
+  it('increments stock and logs restock', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-1', current_stock: 3, name: 'Leche' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    const result = await restockProductAction('p-1');
+    expect(result).toEqual({});
+    expect(mockQueryBuilder.update).toHaveBeenCalledWith({ current_stock: 4 });
+    expect(mockFrom).toHaveBeenCalledWith('consumption_logs');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteProductAction — additional branch coverage
+// ---------------------------------------------------------------------------
+
+describe('deleteProductAction — additional branches', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupSupabaseMock();
+  });
+
+  it('returns error when productId is empty', async () => {
+    const result = await deleteProductAction('');
+    expect(result.error).toBe('ID del producto es obligatorio.');
+  });
+
+  it('returns error when user is not authenticated', async () => {
+    setupSupabaseMock(null);
+    const result = await deleteProductAction('p-1');
+    expect(result.error).toBe('No autenticado');
+  });
+
+  it('returns DB error when delete fails', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'delete failed' } }));
+
+    const result = await deleteProductAction('p-1');
+    expect(result.error).toBe('delete failed');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // T-007: importTicketItemsAction — best-effort budget tracking
 // ---------------------------------------------------------------------------
 
@@ -243,6 +634,39 @@ describe('importTicketItemsAction — budget tracking (best-effort)', () => {
     const items = [{ name: 'Leche', qty: 2, price: 75, category: 'frescos' as const }];
     const result = await importTicketItemsAction(items);
     // Best-effort: imported count must not change even if budget tracking fails
+    expect(result.imported).toBe(1);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('does not throw when budget tracking block throws unexpectedly (catch block coverage, line 292)', async () => {
+    // Simulate an unexpected throw inside the budget try block by making
+    // the from() call throw synchronously after product import is done.
+    let callIndex = 0;
+    const mockFromThrow = vi.fn().mockImplementation((table: string) => {
+      callIndex++;
+      if (callIndex <= 3) {
+        // membership, existing products, insert new product
+        return mockQueryBuilder;
+      }
+      // Consumption log call (callIndex=4) returns OK
+      if (callIndex === 4) return mockQueryBuilder;
+      // Budget tracking: throw synchronously
+      throw new Error('Unexpected synchronous error in budget tracking');
+    });
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
+      from: mockFromThrow,
+    } as any);
+
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: [], error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: { id: 'p-pan' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    // Must not throw — catch block swallows the error
+    const result = await importTicketItemsAction([{ name: 'Pan', qty: 1, price: 120, category: 'despensa' }]);
     expect(result.imported).toBe(1);
     expect(result.error).toBeUndefined();
   });

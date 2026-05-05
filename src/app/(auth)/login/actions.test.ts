@@ -63,3 +63,40 @@ describe('loginAction — whitelist', () => {
     expect(mockSignInWithPassword).toHaveBeenCalledOnce();
   });
 });
+
+// ---------------------------------------------------------------------------
+// loginAction — validation errors (lines 26-29) and auth error (line 43)
+// ---------------------------------------------------------------------------
+
+describe('loginAction — validation', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('returns email validation error when email is malformed', async () => {
+    // zod rejects "not-an-email" → fieldErrors.email[0] is returned (line 26)
+    setupSupabaseMock();
+    const result = await loginAction(undefined, makeFormData('not-an-email', 'password123'));
+    expect(result).toEqual({ error: 'Ingresá un email válido.' });
+    expect(mockSignInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it('returns password validation error when password is too short', async () => {
+    // Valid email but short password → fieldErrors.password[0] (line 27)
+    setupSupabaseMock();
+    const result = await loginAction(undefined, makeFormData('valid@test.com', '123'));
+    expect(result).toEqual({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+    expect(mockSignInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it('returns auth error when Supabase signIn fails (wrong credentials)', async () => {
+    // Valid input, passes whitelist, but Supabase returns error → line 43
+    vi.mocked(isEmailAllowed).mockReturnValue(true);
+    mockSignInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
+    setupSupabaseMock();
+
+    const result = await loginAction(undefined, makeFormData('valid@test.com', 'wrongpass'));
+    expect(result).toEqual({ error: 'Email o contraseña incorrectos.' });
+  });
+});

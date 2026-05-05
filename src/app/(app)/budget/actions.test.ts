@@ -81,6 +81,69 @@ describe('getBudgetSummaryAction', () => {
     expect(result.data).toBeUndefined();
   });
 
+  it('returns error when membership not found', async () => {
+    setupSupabaseMock([
+      { data: null, error: null }, // membership not found
+    ]);
+    const result = await getBudgetSummaryAction();
+    expect(result.error).toBe('No se encontró el hogar');
+  });
+
+  it('returns error when budget query returns DB error (line 65)', async () => {
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },      // membership OK
+      { data: null, error: { message: 'DB error on budget' } }, // budgetError
+    ]);
+    const result = await getBudgetSummaryAction();
+    expect(result.error).toBe('DB error on budget');
+  });
+
+  it('handles null aggData gracefully — returns empty transactions (line 78: aggData ?? [])', async () => {
+    // Supabase returns { data: null, error: null } for shopping_transactions query
+    // aggData ?? [] fallback fires → transactions = []
+    const budget = {
+      id: 'b-1',
+      household_id: 'hh-1',
+      amount: 200,
+      period_type: 'monthly',
+      start_date: '2026-05-01',
+      end_date: '2026-05-31',
+      is_active: true,
+      created_at: '2026-05-01T00:00:00Z',
+      updated_at: '2026-05-01T00:00:00Z',
+    };
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },
+      { data: budget, error: null },
+      { data: null, error: null }, // null aggData → fallback to []
+    ]);
+    const result = await getBudgetSummaryAction();
+    expect(result.error).toBeUndefined();
+    expect(result.data!.spent).toBe(0);
+    expect(result.data!.transactionCount).toBe(0);
+  });
+
+  it('returns error when transactions query returns DB error (line 76)', async () => {
+    const budget = {
+      id: 'b-1',
+      household_id: 'hh-1',
+      amount: 200,
+      period_type: 'monthly',
+      start_date: '2026-05-01',
+      end_date: '2026-05-31',
+      is_active: true,
+      created_at: '2026-05-01T00:00:00Z',
+      updated_at: '2026-05-01T00:00:00Z',
+    };
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },
+      { data: budget, error: null },
+      { data: null, error: { message: 'transactions query failed' } }, // aggError
+    ]);
+    const result = await getBudgetSummaryAction();
+    expect(result.error).toBe('transactions query failed');
+  });
+
   it('returns { data: undefined } when no active budget exists', async () => {
     setupSupabaseMock([
       { data: { household_id: 'hh-1' }, error: null }, // membership
@@ -223,6 +286,36 @@ describe('createBudgetAction', () => {
     expect(result.budgetId).toBe('b-new');
   });
 
+  it('returns error when budget insert fails (line 179)', async () => {
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },  // membership
+      { data: null, error: null },                        // deactivate previous
+      { data: null, error: { message: 'budget insert failed' } }, // insert error
+    ]);
+    const fd = makeFormData({ amount: '200', period_type: 'monthly', start_date: '2026-05-01' });
+    const result = await createBudgetAction(undefined, fd);
+    expect(result.error).toBe('budget insert failed');
+  });
+
+  it('returns error when user not authenticated (line 145)', async () => {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+      from: vi.fn(),
+    } as any);
+    const fd = makeFormData({ amount: '200', period_type: 'monthly', start_date: '2026-05-01' });
+    const result = await createBudgetAction(undefined, fd);
+    expect(result.error).toBe('No autenticado');
+  });
+
+  it('returns error when membership not found (line 154)', async () => {
+    setupSupabaseMock([
+      { data: null, error: null }, // no membership
+    ]);
+    const fd = makeFormData({ amount: '200', period_type: 'monthly', start_date: '2026-05-01' });
+    const result = await createBudgetAction(undefined, fd);
+    expect(result.error).toBe('No se encontró el hogar');
+  });
+
   it('deactivates previous budget and creates new one', async () => {
     let capturedInsert: unknown;
     let updateCalled = false;
@@ -354,6 +447,14 @@ describe('getTransactionsForBudgetAction', () => {
     expect(result.error).toBeDefined();
   });
 
+  it('returns error when membership not found (line 209)', async () => {
+    setupSupabaseMock([
+      { data: null, error: null }, // no membership
+    ]);
+    const result = await getTransactionsForBudgetAction('b-1');
+    expect(result.error).toBe('No se encontró el hogar');
+  });
+
   it('returns error when budget not found (wrong household)', async () => {
     setupSupabaseMock([
       { data: { household_id: 'hh-1' }, error: null }, // membership
@@ -361,6 +462,28 @@ describe('getTransactionsForBudgetAction', () => {
     ]);
     const result = await getTransactionsForBudgetAction('b-other');
     expect(result.error).toBe('Budget no encontrado');
+  });
+
+  it('returns error when shopping_transactions query fails (lines 229-230)', async () => {
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },
+      { data: { start_date: '2026-05-01', end_date: '2026-05-31' }, error: null },
+      { data: null, error: { message: 'transactions query error' } },
+    ]);
+    const result = await getTransactionsForBudgetAction('b-1');
+    expect(result.error).toBe('transactions query error');
+  });
+
+  it('returns empty array when transactions query returns null data (line 230: data ?? [])', async () => {
+    // data is null but no error → { data: data ?? [] } → []
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },
+      { data: { start_date: '2026-05-01', end_date: '2026-05-31' }, error: null },
+      { data: null, error: null }, // null data → fallback to []
+    ]);
+    const result = await getTransactionsForBudgetAction('b-1');
+    expect(result.error).toBeUndefined();
+    expect(result.data).toEqual([]);
   });
 
   it('returns empty array when budget has no transactions', async () => {
@@ -436,6 +559,26 @@ describe('getTransactionItemsAction', () => {
     const result = await getTransactionItemsAction('tx-1');
     expect(result.data![0].product_id).toBeNull();
     expect(result.data![0].product_name).toBe('Producto Raro');
+  });
+
+  it('returns error when DB query fails (line 311)', async () => {
+    // getTransactionItemsAction: user authenticated, but transaction_items query returns error
+    setupSupabaseMock([
+      { data: null, error: { message: 'permission denied' } }, // transaction_items query fails
+    ]);
+    const result = await getTransactionItemsAction('tx-1');
+    expect(result.error).toBe('permission denied');
+    expect(result.data).toBeUndefined();
+  });
+
+  it('returns empty array when transaction_items query returns null data (line 312: data ?? [])', async () => {
+    // data is null but no error → { data: data ?? [] } → []
+    setupSupabaseMock([
+      { data: null, error: null }, // null data → fallback to []
+    ]);
+    const result = await getTransactionItemsAction('tx-1');
+    expect(result.error).toBeUndefined();
+    expect(result.data).toEqual([]);
   });
 });
 
@@ -750,6 +893,53 @@ describe('createManualTransactionAction', () => {
 
     const today = new Date().toISOString().split('T')[0];
     expect(capturedInsert!.transaction_date).toBe(today);
+  });
+
+  it('returns error when user is not authenticated (line 260)', async () => {
+    // User is null → early return "No autenticado"
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+      },
+      from: vi.fn(),
+    } as any);
+
+    const fd = makeFormData({ amount: '100', date: '2026-05-04' });
+    const result = await createManualTransactionAction(undefined, fd);
+    expect(result.error).toBe('No autenticado');
+  });
+
+  it('returns error when membership not found (line 269)', async () => {
+    // User exists but no household membership
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation(() => makeQueryBuilder({ data: null, error: null })),
+    } as any);
+
+    const fd = makeFormData({ amount: '100', date: '2026-05-04' });
+    const result = await createManualTransactionAction(undefined, fd);
+    expect(result.error).toBe('No se encontró el hogar');
+  });
+
+  it('returns error when shopping_transactions insert fails (line 282)', async () => {
+    // All setup OK but final insert returns error
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'household_members') {
+          return makeQueryBuilder({ data: { household_id: 'hh-1' }, error: null });
+        }
+        return makeQueryBuilder({ data: null, error: { message: 'insert failed' } });
+      }),
+    } as any);
+
+    const fd = makeFormData({ amount: '150', date: '2026-05-04' });
+    const result = await createManualTransactionAction(undefined, fd);
+    expect(result.error).toBe('insert failed');
   });
 });
 

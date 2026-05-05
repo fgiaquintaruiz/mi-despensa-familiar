@@ -96,7 +96,16 @@ function extractItems(text: string): ParsedTicketItem[] {
       // A name-only line looks like: optional qty + words, no price at the end.
       const nameOnlyMatch = /^(?:[^0-9]{0,4})?(?:\d+\s+)?([A-Za-záéíóúüñÁÉÍÓÚÜÑ][A-Za-z0-9áéíóúüñÁÉÍÓÚÜÑ\s\-]+)$/.exec(trimmed);
       if (nameOnlyMatch) {
-        prevName = nameOnlyMatch[1].trim();
+        // Only update prevName when the candidate is meaningful — this avoids OCR noise
+        // like "Al" (= garbled "1 BANANA") or "U E Ns" overwriting a valid prior prevName
+        // or accidentally carrying a previous item's name into a weight line.
+        const candidate = nameOnlyMatch[1].trim();
+        if (isValidName(candidate)) {
+          prevName = candidate;
+        }
+        // If candidate is garbage, leave prevName as-is (null or a previous valid name).
+        // Weight items following a completely unreadable name line will fall back to
+        // "(Producto por peso)" — which is the correct conservative behavior.
         continue;
       }
 
@@ -112,7 +121,9 @@ function extractItems(text: string): ParsedTicketItem[] {
           price: parseEuro(noQtyMatch[2]),
           category: mapCategory(name),
         });
-        prevName = name;
+        // Reset prevName: this item is already parsed; don't let its name bleed into a
+        // subsequent weight line that belongs to a different product (e.g. BANANA after EMPANADA).
+        prevName = null;
       } else {
         prevName = null;
       }
@@ -127,8 +138,9 @@ function extractItems(text: string): ParsedTicketItem[] {
       price: parseEuro(match[3]),
       category: mapCategory(name),
     });
-    // Store name so a following weight line can claim it
-    prevName = name;
+    // Reset prevName: this item is already parsed; don't let its name bleed into a
+    // subsequent weight line that belongs to a different product.
+    prevName = null;
   }
 
   return items;

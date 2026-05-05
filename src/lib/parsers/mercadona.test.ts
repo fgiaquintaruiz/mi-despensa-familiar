@@ -12,6 +12,8 @@ TARJETA BANCARIA 24,75`;
 
 // OCR-noisy ticket: endIdx lands on "TARJETA BANCARL", items have OCR prefixes,
 // and a weight-sold item (BANANA) appears before the payment line.
+// NOTE: this is a synthetic simulation where "1 BANANA" is readable. In the real
+// Tesseract run (ACTUAL_OCR_TEXT below), OCR garbles "1 BANANA" to "Al" + "U E Ns".
 const NOISY_OCR_TEXT = `a MERCADONA, S-*- E
 Descripción — P, Unit Imp.(%)
 MU MOUSSE CCO P-4 1,20
@@ -22,6 +24,42 @@ MAN EMPANADA ATUN 3,60
 1 BANANA
 0,890 ko 1,55 €/kg 1,38
 TARJETA BANCARL 64`;
+
+// ACTUAL Tesseract OCR output captured from docs/mercadona corto.jpeg.
+// The BANANA line is completely garbled ("Al" + "U E Ns") and the weight line
+// has an extra prefix ("E) and suffix (NU). All 6 products appear: 5 with their
+// real names and 1 (BANANA) falling back to "(Producto por peso)" because the
+// OCR noise is irrecoverable.
+const ACTUAL_OCR_TEXT = `AU —E— A
+Ae -
+MU ENE
+a MERCADONA, S-*- E
+NU A-46103834 hn e.
+Neo tras
+NERO BULEVAR LOUIS PASTEUR, 17 ANNE
+
+29010 MÁLAGA Me
+29 ELEFONO: TO SES
+" . 26/04/2076 19:35 0P:09 Wes
+E FACTURA SIMPLIFICADA: 4492-014-479385 O
+8 MELINA
+nm | la
+ay Descripción — P, Unit Imp.(%)
+MU MOUSSE CCO P-4 1,20
+MJ 1 FIGURITAS MERLUZA 3,60
+ha 1 CROQUETA CocIDO 2,00
+"UE 1 EMPANADA POLLO SETAS 3,65
+MAN EMPANADA ATUN 3,60
+Al
+U E Ns
+"E 0,890 ko 1,55 €/kg 1,38 NU
+Uy MES 1 " Me
+N NU
+TARJETA BANCARL 64
+1VA BASE IMPONIBLE (€) ——— CUOTA (€) "
+a% 1.3 0,05 -— ¡NE
+10% 1274 1,28 Ep
+TOTAL 14,10 1,33 ne`;
 
 describe('mercadonaParser.canParse', () => {
   it('returns true when filename contains "mercadona"', () => {
@@ -181,5 +219,102 @@ TARJETA BANCARIA 1,38`;
   it('full NOISY_OCR_TEXT parses at least 6 items', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: NOISY_OCR_TEXT });
     expect(items.length).toBeGreaterThanOrEqual(6);
+  });
+});
+
+// ─── Real Tesseract OCR from docs/mercadona corto.jpeg ───────────────────────
+// The real receipt has 6 products:
+//   1. MOUSSE CHOCO P-4   qty=1  price=1,20
+//   2. FIGURITAS MERLUZA  qty=1  price=3,60
+//   3. CROQUETA COCIDO    qty=1  price=2,00
+//   4. EMPANADA POLLO SETAS qty=1 price=3,65
+//   5. EMPANADA ATUN      qty=1  price=3,60
+//   6. BANANA             0,890 kg × 1,55 €/kg = 1,38
+//
+// Tesseract garbles "1 BANANA" into "Al" + "U E Ns" (irrecoverable OCR noise), so
+// item 6 falls back to "(Producto por peso)" — all other 5 products parse correctly.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('mercadonaParser.parse — ACTUAL OCR from docs/mercadona corto.jpeg', () => {
+  it('parses exactly 6 items from actual Tesseract output', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: ACTUAL_OCR_TEXT });
+    expect(items).toHaveLength(6);
+  });
+
+  it('does not include any TOTAL/IVA/TARJETA lines as items', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: ACTUAL_OCR_TEXT });
+    const forbidden = ['TOTAL', 'IVA', 'TARJETA', 'BASE IMPONIBLE', 'CUOTA', 'MASTERCARD'];
+    expect(items.every((i) => forbidden.every((f) => !i.name.toUpperCase().includes(f)))).toBe(true);
+  });
+
+  // Product 1 — "MU MOUSSE CCO P-4 1,20" (no-qty, OCR prefix "MU", CHOCO→CCO)
+  it('product 1: MOUSSE CCO P-4 — qty=1, price=1.20', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: ACTUAL_OCR_TEXT });
+    const item = items.find((i) => i.name.toUpperCase().includes('MOUSSE'));
+    expect(item).toBeDefined();
+    expect(item?.qty).toBe(1);
+    expect(item?.price).toBeCloseTo(1.2);
+  });
+
+  // Product 2 — "MJ 1 FIGURITAS MERLUZA 3,60" (OCR prefix "MJ", qty=1)
+  it('product 2: FIGURITAS MERLUZA — qty=1, price=3.60', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: ACTUAL_OCR_TEXT });
+    const item = items.find((i) => i.name.toUpperCase().includes('FIGURITAS'));
+    expect(item).toBeDefined();
+    expect(item?.qty).toBe(1);
+    expect(item?.price).toBeCloseTo(3.6);
+  });
+
+  // Product 3 — "ha 1 CROQUETA CocIDO 2,00" (lowercase OCR prefix, mixed case name)
+  it('product 3: CROQUETA COCIDO — qty=1, price=2.00', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: ACTUAL_OCR_TEXT });
+    const item = items.find((i) => i.name.toUpperCase().includes('CROQUETA'));
+    expect(item).toBeDefined();
+    expect(item?.qty).toBe(1);
+    expect(item?.price).toBeCloseTo(2.0);
+  });
+
+  // Product 4 — '"UE 1 EMPANADA POLLO SETAS 3,65' (quote+noise prefix, qty=1)
+  it('product 4: EMPANADA POLLO SETAS — qty=1, price=3.65', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: ACTUAL_OCR_TEXT });
+    const item = items.find((i) => i.name.toUpperCase().includes('EMPANADA POLLO'));
+    expect(item).toBeDefined();
+    expect(item?.qty).toBe(1);
+    expect(item?.price).toBeCloseTo(3.65);
+  });
+
+  // Product 5 — "MAN EMPANADA ATUN 3,60" (no-qty, 3-letter OCR prefix "MAN")
+  it('product 5: EMPANADA ATUN — qty=1, price=3.60', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: ACTUAL_OCR_TEXT });
+    const item = items.find((i) => i.name.toUpperCase().includes('EMPANADA ATUN'));
+    expect(item).toBeDefined();
+    expect(item?.qty).toBe(1);
+    expect(item?.price).toBeCloseTo(3.6);
+  });
+
+  // Product 6 — "1 BANANA" garbled by OCR to "Al"+"U E Ns", weight line prefix/suffix noisy.
+  // Parser cannot recover "BANANA" from "Al" — falls back to "(Producto por peso)" correctly.
+  it('product 6: BANANA weight item — qty≈0.890 kg, price=1.55 €/kg, name fallback to "(Producto por peso)"', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: ACTUAL_OCR_TEXT });
+    const item = items.find((i) => Math.abs(i.qty - 0.89) < 0.01 && i.unit === 'kg');
+    expect(item).toBeDefined();
+    expect(item?.qty).toBeCloseTo(0.89);
+    expect(item?.price).toBeCloseTo(1.55);
+    expect(item?.unit).toBe('kg');
+    // Name falls back because OCR garbles "1 BANANA" completely
+    expect(item?.name).toBe('(Producto por peso)');
+  });
+
+  // Guard: OCR garbage lines like "Al", "U E Ns", "Uy MES 1 " Me", "N NU" must NOT be items
+  it('OCR garbage lines (Al, U E Ns, etc.) do not become spurious items', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: ACTUAL_OCR_TEXT });
+    const garbage = ['Al', 'U E Ns', 'Uy', 'MES', 'N NU'];
+    expect(items.every((i) => garbage.every((g) => i.name !== g))).toBe(true);
+  });
+
+  // Guard: EMPANADA ATUN name must NOT bleed into BANANA weight item as its name
+  it('EMPANADA ATUN name does not bleed into the banana weight item', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: ACTUAL_OCR_TEXT });
+    const weightItem = items.find((i) => Math.abs(i.qty - 0.89) < 0.01 && i.unit === 'kg');
+    expect(weightItem?.name).not.toContain('EMPANADA');
   });
 });

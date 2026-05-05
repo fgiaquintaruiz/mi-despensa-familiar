@@ -19,12 +19,13 @@ export default function BudgetWidget({ summary }: BudgetWidgetProps) {
   if (!summary) {
     return (
       <div className="rounded-xl border border-[var(--color-brand)]/20 bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-gray-500">Sin presupuesto activo</p>
+        <p className="text-sm font-semibold text-gray-700">Configurá tu presupuesto mensual</p>
+        <p className="mt-1 text-xs text-gray-500">Empezá a trackear tus gastos de supermercado</p>
         <Link
           href="/budget/settings"
-          className="mt-2 inline-block rounded-lg bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white"
+          className="mt-3 inline-block rounded-lg bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white"
         >
-          Configurar presupuesto
+          Crear presupuesto
         </Link>
       </div>
     );

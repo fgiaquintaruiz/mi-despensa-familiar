@@ -86,4 +86,83 @@ describe('TransactionList', () => {
     // Verified by absence of loading state — we just check action wasn't called again
     expect(getTransactionItemsAction).toHaveBeenCalledTimes(1);
   });
+
+  it('shows loading text while fetching items (skeleton/loading state)', async () => {
+    const { getTransactionItemsAction } = await import('../actions');
+
+    // Return a promise that we control — stays pending until we resolve
+    let resolveItems!: (value: { data: [] }) => void;
+    const pending = new Promise<{ data: [] }>((res) => {
+      resolveItems = res;
+    });
+    vi.mocked(getTransactionItemsAction).mockReturnValue(pending);
+
+    render(<TransactionList transactions={mockTransactions} budgetId="b-1" />);
+    fireEvent.click(screen.getByText('Carrefour'));
+
+    // Loading state must be shown immediately while the promise is pending
+    await waitFor(() => {
+      expect(screen.getByText(/cargando items/i)).toBeInTheDocument();
+    });
+
+    // Cleanup: resolve the promise so no act() warnings
+    resolveItems({ data: [] });
+    await waitFor(() => {
+      expect(screen.queryByText(/cargando items/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows product_name without a link when product_id is null', async () => {
+    const { getTransactionItemsAction } = await import('../actions');
+    vi.mocked(getTransactionItemsAction).mockResolvedValue({
+      data: [
+        {
+          id: 'i-3',
+          transaction_id: 'tx-1',
+          product_id: null,
+          product_name: 'Arroz Suelto',
+          quantity: 1,
+          unit_price: 200,
+          line_total: 200,
+          created_at: '2026-05-04T10:00:00Z',
+        },
+      ],
+    });
+
+    render(<TransactionList transactions={mockTransactions} budgetId="b-1" />);
+    fireEvent.click(screen.getByText('Carrefour'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Arroz Suelto')).toBeInTheDocument();
+    });
+
+    // The item name must NOT be wrapped in a link element
+    const itemEl = screen.getByText('Arroz Suelto');
+    expect(itemEl.closest('a')).toBeNull();
+  });
+
+  it('shows "(Producto desconocido)" label alongside name when product_id is null', async () => {
+    const { getTransactionItemsAction } = await import('../actions');
+    vi.mocked(getTransactionItemsAction).mockResolvedValue({
+      data: [
+        {
+          id: 'i-4',
+          transaction_id: 'tx-1',
+          product_id: null,
+          product_name: 'Producto Raro',
+          quantity: 1,
+          unit_price: 50,
+          line_total: 50,
+          created_at: '2026-05-04T10:00:00Z',
+        },
+      ],
+    });
+
+    render(<TransactionList transactions={mockTransactions} budgetId="b-1" />);
+    fireEvent.click(screen.getByText('Carrefour'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/producto desconocido/i)).toBeInTheDocument();
+    });
+  });
 });

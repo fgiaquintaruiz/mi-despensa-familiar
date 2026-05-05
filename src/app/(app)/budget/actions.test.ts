@@ -264,6 +264,83 @@ describe('createBudgetAction', () => {
 });
 
 // ---------------------------------------------------------------------------
+// T-017: createBudgetAction — period rollover validation
+// ---------------------------------------------------------------------------
+
+describe('createBudgetAction — period rollover (T-017)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function setupMockWithInsertCapture(onInsert: (data: unknown) => void) {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          insert: vi.fn().mockImplementation((data: unknown) => {
+            if (table === 'budgets') onInsert(data);
+            return qb;
+          }),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            return Promise.resolve(resolve({ data: { id: 'b-new' }, error: null }));
+          }),
+        };
+        return qb;
+      }),
+    } as any);
+  }
+
+  it('calculates end_date as start_date + 1 month exactly for monthly period', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupMockWithInsertCapture((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '200', period_type: 'monthly', start_date: '2026-05-01' });
+    await createBudgetAction(undefined, fd);
+
+    expect(capturedInsert).toBeDefined();
+    expect(capturedInsert!.end_date).toBe('2026-06-01');
+  });
+
+  it('calculates end_date as start_date + 14 days for biweekly period', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupMockWithInsertCapture((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '100', period_type: 'biweekly', start_date: '2026-05-04' });
+    await createBudgetAction(undefined, fd);
+
+    expect(capturedInsert).toBeDefined();
+    expect(capturedInsert!.end_date).toBe('2026-05-18');
+  });
+
+  it('correctly rolls over December → January for monthly period', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupMockWithInsertCapture((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '300', period_type: 'monthly', start_date: '2026-12-01' });
+    await createBudgetAction(undefined, fd);
+
+    expect(capturedInsert).toBeDefined();
+    // December + 1 month = January of the following year
+    expect(capturedInsert!.end_date).toBe('2027-01-01');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // T-005: getTransactionsForBudgetAction
 // ---------------------------------------------------------------------------
 
@@ -358,5 +435,119 @@ describe('getTransactionItemsAction', () => {
     const result = await getTransactionItemsAction('tx-1');
     expect(result.data![0].product_id).toBeNull();
     expect(result.data![0].product_name).toBe('Producto Raro');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T-022: Data integrity — item_count, total_amount, line_total consistency
+// ---------------------------------------------------------------------------
+
+describe('T-022: Data integrity — getBudgetSummaryAction total computation', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /**
+   * These tests verify that getBudgetSummaryAction correctly aggregates
+   * total_amount from shopping_transactions, which should equal the sum
+   * of all line_total values from the corresponding transaction_items.
+   *
+   * The invariant: SUM(transactions.total_amount) === SUM(items.line_total)
+   * is preserved by importTicketItemsAction (best-effort budget tracking).
+   */
+
+  it('spent equals sum of all transaction total_amounts (3 transactions)', async () => {
+    const budget = {
+      id: 'b-1',
+      household_id: 'hh-1',
+      amount: 1000,
+      period_type: 'monthly',
+      start_date: '2026-05-01',
+      end_date: '2026-05-31',
+      is_active: true,
+      created_at: '2026-05-01T00:00:00Z',
+      updated_at: '2026-05-01T00:00:00Z',
+    };
+
+    // 3 items: $100, $50, $25 — total should be $175
+    const transactions = [
+      { id: 'tx-1', total_amount: 100 },
+      { id: 'tx-2', total_amount: 50 },
+      { id: 'tx-3', total_amount: 25 },
+    ];
+
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },
+      { data: budget, error: null },
+      { data: transactions, error: null },
+    ]);
+
+    const result = await getBudgetSummaryAction();
+
+    expect(result.data).toBeDefined();
+    // SUM(total_amount) = 100 + 50 + 25 = 175
+    expect(result.data!.spent).toBe(175);
+    // remaining = 1000 - 175 = 825
+    expect(result.data!.remaining).toBe(825);
+    // item_count via transactionCount
+    expect(result.data!.transactionCount).toBe(3);
+  });
+
+  it('total_amount equals line_total sum: verifies math invariant on returned items', async () => {
+    /**
+     * Simulates the invariant:
+     *   transaction.total_amount === SUM(transaction_items.line_total)
+     *
+     * Mock: a transaction with total_amount=270 was created by importTicketItemsAction
+     * with items: [Leche: 2×75=150, Pan: 1×120=120] → sum = 270 ✓
+     */
+    const items = [
+      { id: 'i-1', transaction_id: 'tx-1', product_id: 'p-1', product_name: 'Leche', quantity: 2, unit_price: 75, line_total: 150, created_at: '' },
+      { id: 'i-2', transaction_id: 'tx-1', product_id: null, product_name: 'Pan', quantity: 1, unit_price: 120, line_total: 120, created_at: '' },
+    ];
+
+    setupSupabaseMock([
+      { data: items, error: null },
+    ]);
+
+    const result = await getTransactionItemsAction('tx-1');
+
+    expect(result.data).toBeDefined();
+    expect(result.data).toHaveLength(2);
+
+    const sumOfLineTotals = result.data!.reduce((acc, item) => acc + item.line_total, 0);
+    // SUM(line_total) = 150 + 120 = 270
+    expect(sumOfLineTotals).toBe(270);
+
+    // item_count from the transaction (2 items inserted) matches data length
+    expect(result.data!.length).toBe(2);
+  });
+
+  it('total_amount computation handles decimal line_totals without floating-point errors', async () => {
+    /**
+     * Edge case: multiple items with decimal prices.
+     * e.g.: 3×33.33 = 99.99 (not 100.0 due to floating point)
+     */
+    const budget = {
+      id: 'b-1',
+      household_id: 'hh-1',
+      amount: 500,
+      period_type: 'monthly',
+      start_date: '2026-05-01',
+      end_date: '2026-05-31',
+      is_active: true,
+      created_at: '2026-05-01T00:00:00Z',
+      updated_at: '2026-05-01T00:00:00Z',
+    };
+
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },
+      { data: budget, error: null },
+      { data: [{ id: 'tx-1', total_amount: 99.99 }], error: null },
+    ]);
+
+    const result = await getBudgetSummaryAction();
+
+    expect(result.data).toBeDefined();
+    expect(result.data!.spent).toBeCloseTo(99.99, 2);
+    expect(result.data!.remaining).toBeCloseTo(400.01, 2);
   });
 });

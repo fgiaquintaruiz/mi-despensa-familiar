@@ -25,14 +25,19 @@ function makeSummary(spent: number, amount: number): BudgetSummary {
 }
 
 describe('BudgetWidget', () => {
-  it('shows CTA "Configurar presupuesto" when summary is null', () => {
+  it('shows CTA heading "Configurá tu presupuesto mensual" when summary is null', () => {
     render(<BudgetWidget summary={null} />);
-    expect(screen.getByText(/configurar presupuesto/i)).toBeInTheDocument();
+    expect(screen.getByText(/configurá tu presupuesto mensual/i)).toBeInTheDocument();
   });
 
-  it('CTA links to /budget/settings when summary is null', () => {
+  it('shows subtext "Empezá a trackear" when summary is null', () => {
     render(<BudgetWidget summary={null} />);
-    const link = screen.getByRole('link', { name: /configurar presupuesto/i });
+    expect(screen.getByText(/empezá a trackear/i)).toBeInTheDocument();
+  });
+
+  it('CTA "Crear presupuesto" links to /budget/settings when summary is null', () => {
+    render(<BudgetWidget summary={null} />);
+    const link = screen.getByRole('link', { name: /crear presupuesto/i });
     expect(link).toHaveAttribute('href', '/budget/settings');
   });
 

@@ -50,7 +50,7 @@ export default async function Home({
       )}
       <main className="pb-8">
         <DashboardStats total={total} lowStock={lowStock} categories={categories} />
-        <div className="mb-4">
+        <div className="mt-4 mb-4">
           <BudgetWidget summary={budgetSummary ?? null} />
         </div>
         <ProductFilters products={list} />

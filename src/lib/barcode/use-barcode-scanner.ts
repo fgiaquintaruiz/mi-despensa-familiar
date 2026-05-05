@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] as const;
 
@@ -26,8 +26,11 @@ export function useBarcodeScanner(onDetected: (barcode: string) => void): {
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
 
-  const isSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+  useEffect(() => {
+    setIsSupported(typeof window !== 'undefined' && 'BarcodeDetector' in window);
+  }, []);
 
   function stopScan() {
     if (rafRef.current !== null) {

@@ -88,8 +88,9 @@ export default function FabSpeedDial() {
         />
       )}
 
-      {/* Speed-dial container */}
-      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
+      {/* Speed-dial container — fixed to viewport bottom, constrained to the 480px content column */}
+      <div className="fixed bottom-0 inset-x-0 z-40 pointer-events-none mx-auto max-w-[480px]">
+      <div className="pointer-events-auto absolute bottom-6 right-6 flex flex-col items-end gap-3">
         {/* Action items — rendered bottom-to-top (reversed so first action is closest to FAB) */}
         <div className="flex flex-col-reverse gap-3">
           {ACTIONS.map((action, index) => (
@@ -134,6 +135,7 @@ export default function FabSpeedDial() {
         >
           +
         </button>
+      </div>
       </div>
 
       {/* AddProductSheet — controlled mode */}

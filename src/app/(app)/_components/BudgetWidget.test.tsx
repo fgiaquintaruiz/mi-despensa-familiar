@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import BudgetWidget from './BudgetWidget';
-import type { BudgetSummary } from '@/lib/types';
+import type { BudgetSummary, BudgetCurrency } from '@/lib/types';
 
-function makeSummary(spent: number, amount: number): BudgetSummary {
+function makeSummary(spent: number, amount: number, currency: BudgetCurrency = 'EUR', has_manual = false): BudgetSummary {
   const percentage = Math.min(100, Math.round((spent / amount) * 100));
+  const manual_amount = has_manual ? spent * 0.2 : 0;
+  const auto_amount = spent - manual_amount;
   return {
     budget: {
       id: 'b-1',
@@ -14,6 +16,7 @@ function makeSummary(spent: number, amount: number): BudgetSummary {
       start_date: '2026-05-01',
       end_date: '2026-05-31',
       is_active: true,
+      currency,
       created_at: '2026-05-01T00:00:00Z',
       updated_at: '2026-05-01T00:00:00Z',
     },
@@ -21,6 +24,10 @@ function makeSummary(spent: number, amount: number): BudgetSummary {
     remaining: amount - spent,
     percentage,
     transactionCount: 1,
+    currency,
+    manual_amount,
+    auto_amount,
+    has_manual,
   };
 }
 
@@ -76,5 +83,26 @@ describe('BudgetWidget', () => {
     render(<BudgetWidget summary={makeSummary(50, 200)} />);
     const link = screen.getByRole('link', { name: /ver detalle/i });
     expect(link).toHaveAttribute('href', '/budget');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cambio 3 — BudgetWidget manual badge
+// ---------------------------------------------------------------------------
+
+describe('BudgetWidget — manual badge (Cambio 3)', () => {
+  it('shows the manual badge when has_manual is true', () => {
+    render(<BudgetWidget summary={makeSummary(100, 500, 'EUR', true)} />);
+    expect(screen.getByText(/Incluye/i)).toBeInTheDocument();
+  });
+
+  it('shows "ingresado manualmente" in the badge text when has_manual is true', () => {
+    render(<BudgetWidget summary={makeSummary(100, 500, 'EUR', true)} />);
+    expect(screen.getByText(/ingresado manualmente/i)).toBeInTheDocument();
+  });
+
+  it('does NOT show the manual badge when has_manual is false', () => {
+    render(<BudgetWidget summary={makeSummary(100, 500, 'EUR', false)} />);
+    expect(screen.queryByText(/ingresado manualmente/i)).not.toBeInTheDocument();
   });
 });

@@ -48,6 +48,23 @@ export default function BudgetForm({ initialBudget }: BudgetFormProps) {
       </div>
 
       <div className="flex flex-col gap-1">
+        <label htmlFor="currency" className="text-sm font-semibold text-gray-700">
+          Moneda
+        </label>
+        <select
+          id="currency"
+          name="currency"
+          required
+          defaultValue={initialBudget?.currency ?? 'EUR'}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[var(--color-brand)] focus:outline-none"
+        >
+          <option value="EUR">€ Euro</option>
+          <option value="USD">US$ Dólar</option>
+          <option value="ARS">$ Peso argentino</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1">
         <label htmlFor="period_type" className="text-sm font-semibold text-gray-700">
           Período
         </label>
@@ -65,7 +82,7 @@ export default function BudgetForm({ initialBudget }: BudgetFormProps) {
 
       <div className="flex flex-col gap-1">
         <label htmlFor="start_date" className="text-sm font-semibold text-gray-700">
-          Fecha de inicio
+          ¿Cuándo cobrás?
         </label>
         <input
           id="start_date"
@@ -75,6 +92,9 @@ export default function BudgetForm({ initialBudget }: BudgetFormProps) {
           defaultValue={initialBudget?.start_date ?? firstOfMonth}
           className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[var(--color-brand)] focus:outline-none"
         />
+        <p className="text-xs text-gray-500">
+          Tu presupuesto se reinicia automáticamente cada período a partir de esta fecha.
+        </p>
       </div>
 
       <button

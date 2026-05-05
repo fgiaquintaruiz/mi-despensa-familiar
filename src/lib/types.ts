@@ -153,6 +153,7 @@ export type PriceHistoryUpdate = Partial<Omit<PriceHistoryInsert, 'id'>>;
 // --- Row types (SELECT) ---
 
 export type BudgetPeriodType = 'monthly' | 'biweekly';
+export type BudgetCurrency = 'EUR' | 'USD' | 'ARS';
 
 export interface Budget {
   id: string;
@@ -162,6 +163,7 @@ export interface Budget {
   start_date: string;   // ISO date string "YYYY-MM-DD"
   end_date: string;     // ISO date string "YYYY-MM-DD"
   is_active: boolean;
+  currency: BudgetCurrency;
   created_at: string;
   updated_at: string;
 }
@@ -196,6 +198,11 @@ export interface BudgetSummary {
   remaining: number;       // budget.amount - spent
   percentage: number;      // (spent / budget.amount) * 100, clamped 0-100
   transactionCount: number;
+  currency: BudgetCurrency;
+  manual_amount: number;   // SUM of transactions with source='manual' in the period
+  auto_amount: number;     // SUM of transactions with source='ocr' in the period
+  has_manual: boolean;     // true if manual_amount > 0
+  transactions: ShoppingTransaction[]; // full list for the active period (no extra DB call)
 }
 
 // --- Insert types ---
@@ -207,6 +214,7 @@ export interface BudgetInsert {
   start_date: string;
   end_date: string;
   is_active?: boolean;
+  currency?: BudgetCurrency;
   created_at?: string;
   updated_at?: string;
 }

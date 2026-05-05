@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getBudgetSummaryAction,
   createBudgetAction,
+  createManualTransactionAction,
   getTransactionsForBudgetAction,
   getTransactionItemsAction,
 } from './actions';
@@ -549,5 +550,294 @@ describe('T-022: Data integrity — getBudgetSummaryAction total computation', (
     expect(result.data).toBeDefined();
     expect(result.data!.spent).toBeCloseTo(99.99, 2);
     expect(result.data!.remaining).toBeCloseTo(400.01, 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cambio 1 — createBudgetAction with currency
+// ---------------------------------------------------------------------------
+
+describe('createBudgetAction — currency (Cambio 1)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function setupMockWithInsertCapture(onInsert: (data: unknown) => void) {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          insert: vi.fn().mockImplementation((data: unknown) => {
+            if (table === 'budgets') onInsert(data);
+            return qb;
+          }),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            return Promise.resolve(resolve({ data: { id: 'b-new' }, error: null }));
+          }),
+        };
+        return qb;
+      }),
+    } as any);
+  }
+
+  it('saves currency=ARS when provided', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupMockWithInsertCapture((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '1000', period_type: 'monthly', start_date: '2026-05-01', currency: 'ARS' });
+    const result = await createBudgetAction(undefined, fd);
+
+    expect(result.error).toBeUndefined();
+    expect(capturedInsert).toBeDefined();
+    expect(capturedInsert!.currency).toBe('ARS');
+  });
+
+  it('saves currency=EUR when provided', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupMockWithInsertCapture((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '500', period_type: 'monthly', start_date: '2026-05-01', currency: 'EUR' });
+    const result = await createBudgetAction(undefined, fd);
+
+    expect(result.error).toBeUndefined();
+    expect(capturedInsert!.currency).toBe('EUR');
+  });
+
+  it('saves currency=USD when provided', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupMockWithInsertCapture((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '500', period_type: 'biweekly', start_date: '2026-05-01', currency: 'USD' });
+    const result = await createBudgetAction(undefined, fd);
+
+    expect(result.error).toBeUndefined();
+    expect(capturedInsert!.currency).toBe('USD');
+  });
+
+  it('returns error when currency is invalid', async () => {
+    setupSupabaseMock([]);
+    const fd = makeFormData({ amount: '500', period_type: 'monthly', start_date: '2026-05-01', currency: 'GBP' });
+    const result = await createBudgetAction(undefined, fd);
+    expect(result.error).toBeDefined();
+  });
+
+  it('defaults to EUR when currency is not provided', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupMockWithInsertCapture((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '200', period_type: 'monthly', start_date: '2026-05-01' });
+    const result = await createBudgetAction(undefined, fd);
+
+    expect(result.error).toBeUndefined();
+    expect(capturedInsert!.currency).toBe('EUR');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cambio 3 — createManualTransactionAction
+// ---------------------------------------------------------------------------
+
+describe('createManualTransactionAction', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function setupManualTransactionMock(onInsert?: (data: unknown) => void) {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          insert: vi.fn().mockImplementation((data: unknown) => {
+            if (table === 'shopping_transactions' && onInsert) onInsert(data);
+            return qb;
+          }),
+          eq: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            return Promise.resolve(resolve({ data: { id: 'tx-new' }, error: null }));
+          }),
+        };
+        return qb;
+      }),
+    } as any);
+  }
+
+  it('creates transaction with source=manual and item_count=0 when amount is valid', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupManualTransactionMock((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '150', description: 'Farmacia', date: '2026-05-04' });
+    const result = await createManualTransactionAction(undefined, fd);
+
+    expect(result.error).toBeUndefined();
+    expect(capturedInsert).toBeDefined();
+    expect(capturedInsert!.source).toBe('manual');
+    expect(capturedInsert!.item_count).toBe(0);
+    expect(capturedInsert!.total_amount).toBe(150);
+  });
+
+  it('uses description as store_name when provided', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupManualTransactionMock((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '75', description: 'Verdulería', date: '2026-05-04' });
+    await createManualTransactionAction(undefined, fd);
+
+    expect(capturedInsert!.store_name).toBe('Verdulería');
+  });
+
+  it('uses "Gasto manual" as store_name when description is empty', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupManualTransactionMock((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '75', description: '', date: '2026-05-04' });
+    await createManualTransactionAction(undefined, fd);
+
+    expect(capturedInsert!.store_name).toBe('Gasto manual');
+  });
+
+  it('returns error when amount is 0', async () => {
+    setupSupabaseMock([]);
+    const fd = makeFormData({ amount: '0', date: '2026-05-04' });
+    const result = await createManualTransactionAction(undefined, fd);
+    expect(result.error).toBeDefined();
+  });
+
+  it('returns error when amount is negative', async () => {
+    setupSupabaseMock([]);
+    const fd = makeFormData({ amount: '-50', date: '2026-05-04' });
+    const result = await createManualTransactionAction(undefined, fd);
+    expect(result.error).toBeDefined();
+  });
+
+  it('uses today as date when date field is absent', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupManualTransactionMock((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '100' });
+    await createManualTransactionAction(undefined, fd);
+
+    const today = new Date().toISOString().split('T')[0];
+    expect(capturedInsert!.transaction_date).toBe(today);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cambio 3 — getBudgetSummaryAction with manual_amount / auto_amount breakdown
+// ---------------------------------------------------------------------------
+
+describe('getBudgetSummaryAction — manual vs auto breakdown (Cambio 3)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const baseBudget = {
+    id: 'b-1',
+    household_id: 'hh-1',
+    amount: 500,
+    period_type: 'monthly',
+    start_date: '2026-05-01',
+    end_date: '2026-05-31',
+    is_active: true,
+    currency: 'EUR',
+    created_at: '2026-05-01T00:00:00Z',
+    updated_at: '2026-05-01T00:00:00Z',
+  };
+
+  it('computes auto_amount and manual_amount separately from mixed transactions', async () => {
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },
+      { data: baseBudget, error: null },
+      {
+        data: [
+          { id: 't-1', total_amount: 100, source: 'ocr' },
+          { id: 't-2', total_amount: 50, source: 'ocr' },
+          { id: 't-3', total_amount: 30, source: 'manual' },
+        ],
+        error: null,
+      },
+    ]);
+
+    const result = await getBudgetSummaryAction();
+
+    expect(result.data).toBeDefined();
+    expect(result.data!.auto_amount).toBe(150);
+    expect(result.data!.manual_amount).toBe(30);
+    expect(result.data!.has_manual).toBe(true);
+    expect(result.data!.spent).toBe(180); // total = 150 + 30
+  });
+
+  it('sets has_manual=false when all transactions are ocr', async () => {
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },
+      { data: baseBudget, error: null },
+      {
+        data: [
+          { id: 't-1', total_amount: 200, source: 'ocr' },
+        ],
+        error: null,
+      },
+    ]);
+
+    const result = await getBudgetSummaryAction();
+
+    expect(result.data!.manual_amount).toBe(0);
+    expect(result.data!.auto_amount).toBe(200);
+    expect(result.data!.has_manual).toBe(false);
+  });
+
+  it('sets has_manual=false when there are no transactions', async () => {
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },
+      { data: baseBudget, error: null },
+      { data: [], error: null },
+    ]);
+
+    const result = await getBudgetSummaryAction();
+
+    expect(result.data!.manual_amount).toBe(0);
+    expect(result.data!.auto_amount).toBe(0);
+    expect(result.data!.has_manual).toBe(false);
+  });
+
+  it('exposes currency from the budget in the summary', async () => {
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null },
+      { data: { ...baseBudget, currency: 'ARS' }, error: null },
+      { data: [], error: null },
+    ]);
+
+    const result = await getBudgetSummaryAction();
+
+    expect(result.data!.currency).toBe('ARS');
   });
 });

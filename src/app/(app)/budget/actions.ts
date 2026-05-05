@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import type { Budget, BudgetInsert, BudgetSummary, ShoppingTransaction, TransactionItem } from '@/lib/types';
+import type { Budget, BudgetCurrency, BudgetInsert, BudgetSummary, ShoppingTransaction, ShoppingTransactionInsert, TransactionItem } from '@/lib/types';
+
+const VALID_CURRENCIES: BudgetCurrency[] = ['EUR', 'USD', 'ARS'];
 
 // ---------------------------------------------------------------------------
 // Private helpers
@@ -65,25 +67,40 @@ export async function getBudgetSummaryAction(): Promise<{ data?: BudgetSummary; 
 
   const { data: aggData, error: aggError } = await supabase
     .from('shopping_transactions')
-    .select('total_amount, id')
+    .select('*')
     .eq('household_id', membership.household_id)
     .gte('transaction_date', budget.start_date)
-    .lte('transaction_date', budget.end_date);
+    .lte('transaction_date', budget.end_date)
+    .order('transaction_date', { ascending: false });
 
   if (aggError) return { error: aggError.message };
 
-  const transactions = aggData ?? [];
+  const transactions = (aggData ?? []) as ShoppingTransaction[];
   const spent = transactions.reduce((acc, t) => acc + Number(t.total_amount), 0);
   const remaining = Number(budget.amount) - spent;
   const percentage = Math.min(100, Math.round((spent / Number(budget.amount)) * 100));
 
+  const manual_amount = transactions
+    .filter((t) => t.source === 'manual')
+    .reduce((acc, t) => acc + Number(t.total_amount), 0);
+  const auto_amount = transactions
+    .filter((t) => t.source !== 'manual')
+    .reduce((acc, t) => acc + Number(t.total_amount), 0);
+
+  const typedBudget = budget as Budget;
+
   return {
     data: {
-      budget: budget as Budget,
+      budget: typedBudget,
       spent,
       remaining,
       percentage,
       transactionCount: transactions.length,
+      currency: typedBudget.currency ?? 'EUR',
+      manual_amount,
+      auto_amount,
+      has_manual: manual_amount > 0,
+      transactions,
     },
   };
 }
@@ -102,6 +119,7 @@ export async function createBudgetAction(
   const amountRaw = formData.get('amount');
   const periodType = formData.get('period_type') as 'monthly' | 'biweekly' | null;
   const startDate = (formData.get('start_date') as string | null)?.trim() ?? '';
+  const currencyRaw = (formData.get('currency') as string | null)?.trim() || 'EUR';
 
   const amount = Number(amountRaw);
 
@@ -112,7 +130,11 @@ export async function createBudgetAction(
   if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
     return { error: 'Fecha de inicio inválida.' };
   }
+  if (!VALID_CURRENCIES.includes(currencyRaw as BudgetCurrency)) {
+    return { error: 'Moneda inválida.' };
+  }
 
+  const currency = currencyRaw as BudgetCurrency;
   const endDate = computeEndDate(startDate, periodType);
 
   const supabase = await createClient();
@@ -145,6 +167,7 @@ export async function createBudgetAction(
     start_date: startDate,
     end_date: endDate,
     is_active: true,
+    currency,
   };
 
   const { data: newBudget, error } = await supabase
@@ -155,7 +178,7 @@ export async function createBudgetAction(
 
   if (error) return { error: error.message };
 
-  revalidatePath('/', 'layout');
+  revalidatePath('/budget', 'layout');
   return { budgetId: newBudget.id };
 }
 
@@ -205,6 +228,61 @@ export async function getTransactionsForBudgetAction(
 
   if (error) return { error: error.message };
   return { data: data ?? [] };
+}
+
+// ---------------------------------------------------------------------------
+// createManualTransactionAction
+// ---------------------------------------------------------------------------
+/**
+ * Creates a manual shopping_transaction (source='manual') without items.
+ * Used to record out-of-app expenses that should count against the budget.
+ */
+export async function createManualTransactionAction(
+  _prevState: unknown,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const amountRaw = formData.get('amount');
+  const description = (formData.get('description') as string | null)?.trim() ?? '';
+  const dateRaw = (formData.get('date') as string | null)?.trim() ?? '';
+
+  const amount = Number(amountRaw);
+
+  if (!amount || amount <= 0) return { error: 'El monto debe ser mayor a 0.' };
+
+  const today = new Date().toISOString().split('T')[0];
+  const transactionDate = dateRaw && /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? dateRaw : today;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: 'No autenticado' };
+
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) return { error: 'No se encontró el hogar' };
+
+  const insert: ShoppingTransactionInsert = {
+    household_id: membership.household_id,
+    total_amount: amount,
+    item_count: 0,
+    source: 'manual',
+    store_name: description || 'Gasto manual',
+    transaction_date: transactionDate,
+  };
+
+  const { error } = await supabase.from('shopping_transactions').insert(insert);
+
+  if (error) return { error: error.message };
+
+  revalidatePath('/budget', 'layout');
+  return {};
 }
 
 // ---------------------------------------------------------------------------

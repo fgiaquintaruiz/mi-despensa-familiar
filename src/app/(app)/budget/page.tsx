@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getBudgetSummaryAction, getTransactionsForBudgetAction } from './actions';
+import { getBudgetSummaryAction } from './actions';
 import BudgetWidget from '../_components/BudgetWidget';
 import TransactionList from './_components/TransactionList';
+import ManualTransactionForm from './_components/ManualTransactionForm';
+import { formatAmount } from '@/lib/currency';
 
 export const metadata: Metadata = {
   title: 'Presupuesto | Mi Despensa',
@@ -10,11 +12,6 @@ export const metadata: Metadata = {
 
 export default async function BudgetPage() {
   const { data: summary } = await getBudgetSummaryAction();
-
-  const transactions =
-    summary?.budget.id
-      ? (await getTransactionsForBudgetAction(summary.budget.id)).data ?? []
-      : [];
 
   if (!summary) {
     return (
@@ -35,6 +32,8 @@ export default async function BudgetPage() {
       </main>
     );
   }
+
+  const transactions = summary.transactions;
 
   const avgTicket =
     transactions.length > 0
@@ -76,13 +75,13 @@ export default async function BudgetPage() {
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-3 text-center">
           <p className="text-lg font-bold text-gray-800">
-            ${new Intl.NumberFormat('es-AR').format(Math.round(avgTicket))}
+            {formatAmount(Math.round(avgTicket), summary.currency)}
           </p>
           <p className="text-xs text-gray-500">Ticket promedio</p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-3 text-center">
           <p className="text-lg font-bold text-gray-800">
-            ${new Intl.NumberFormat('es-AR').format(Math.round(Number(maxTransaction?.total_amount ?? 0)))}
+            {formatAmount(Math.round(Number(maxTransaction?.total_amount ?? 0)), summary.currency)}
           </p>
           <p className="text-xs text-gray-500">Compra más cara</p>
         </div>
@@ -90,6 +89,11 @@ export default async function BudgetPage() {
           <p className="text-lg font-bold text-gray-800">{totalItems}</p>
           <p className="text-xs text-gray-500">Items totales</p>
         </div>
+      </div>
+
+      {/* Manual transaction form */}
+      <div className="mb-4">
+        <ManualTransactionForm />
       </div>
 
       {/* Transaction List */}

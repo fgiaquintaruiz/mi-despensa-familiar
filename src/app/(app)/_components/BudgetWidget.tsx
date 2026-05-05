@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { BudgetSummary } from '@/lib/types';
+import { formatAmount } from '@/lib/currency';
 
 interface BudgetWidgetProps {
   summary: BudgetSummary | null;
@@ -9,10 +10,6 @@ function getBarColor(percentage: number): string {
   if (percentage >= 90) return 'bg-red-500';
   if (percentage >= 70) return 'bg-yellow-500';
   return 'bg-green-500';
-}
-
-function formatAmount(amount: number): string {
-  return new Intl.NumberFormat('es-AR').format(Math.round(amount));
 }
 
 export default function BudgetWidget({ summary }: BudgetWidgetProps) {
@@ -31,7 +28,7 @@ export default function BudgetWidget({ summary }: BudgetWidgetProps) {
     );
   }
 
-  const { spent, budget, percentage, remaining } = summary;
+  const { spent, budget, percentage, remaining, currency, manual_amount, has_manual } = summary;
   const clampedPercentage = Math.min(100, percentage);
   const barColor = getBarColor(clampedPercentage);
 
@@ -63,12 +60,19 @@ export default function BudgetWidget({ summary }: BudgetWidgetProps) {
         />
       </div>
 
+      {/* Manual badge */}
+      {has_manual && (
+        <p className="mb-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+          ⚠ Incluye {formatAmount(manual_amount, currency)} ingresado manualmente
+        </p>
+      )}
+
       <div className="flex items-center justify-between text-sm">
         <div>
           <p className="font-medium text-gray-800">
-            Gastaste ${formatAmount(spent)} de ${formatAmount(Number(budget.amount))}
+            Gastaste {formatAmount(spent, currency)} de {formatAmount(Number(budget.amount), currency)}
           </p>
-          <p className="text-xs text-gray-500">Te quedan ${formatAmount(remaining)}</p>
+          <p className="text-xs text-gray-500">Te quedan {formatAmount(remaining, currency)}</p>
         </div>
         <Link
           href="/budget"

@@ -60,6 +60,10 @@ export function useBarcodeScanner(onDetected: (barcode: string) => void): {
       videoRef.current.srcObject = stream;
     }
 
+    if (videoRef.current) {
+      await videoRef.current.play().catch(() => {});
+    }
+
     setIsScanning(true);
 
     const detector = new window.BarcodeDetector!({ formats: FORMATS });

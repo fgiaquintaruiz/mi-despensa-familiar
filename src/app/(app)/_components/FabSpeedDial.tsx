@@ -89,6 +89,7 @@ export default function FabSpeedDial() {
       )}
 
       {/* Speed-dial container — fixed to viewport bottom, constrained to the 480px content column */}
+      {!sheetOpen && (
       <div className="fixed bottom-0 inset-x-0 z-40 pointer-events-none mx-auto max-w-[480px]">
       <div className="pointer-events-auto absolute bottom-6 right-6 flex flex-col items-end gap-3">
         {/* Action items — rendered bottom-to-top (reversed so first action is closest to FAB) */}
@@ -137,6 +138,7 @@ export default function FabSpeedDial() {
         </button>
       </div>
       </div>
+      )}
 
       {/* AddProductSheet — controlled mode */}
       <AddProductSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />

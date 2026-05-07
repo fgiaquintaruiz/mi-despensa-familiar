@@ -474,3 +474,42 @@ export async function deleteProductAction(productId: string): Promise<{ error?: 
   revalidatePath('/', 'layout');
   return {};
 }
+
+export async function bulkDeleteProductsAction(productIds: string[]): Promise<{ error?: string }> {
+  if (!productIds || productIds.length === 0) {
+    return { error: 'Se requiere al menos un producto para eliminar.' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'No autenticado' };
+  }
+
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) {
+    return { error: 'No se encontró el hogar' };
+  }
+
+  const { error } = await supabase
+    .from('products')
+    .delete()
+    .in('id', productIds)
+    .eq('household_id', membership.household_id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/', 'layout');
+  return {};
+}

@@ -48,7 +48,7 @@ export default async function Home({
           <ImportSuccessToast count={importedCount} />
         </Suspense>
       )}
-      <main className="pb-8">
+      <main className="pb-28">
         <DashboardStats total={total} lowStock={lowStock} categories={categories} />
         <div className="mt-4 mb-4">
           <BudgetWidget summary={budgetSummary ?? null} />

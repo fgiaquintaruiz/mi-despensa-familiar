@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { deleteProductAction } from '../actions';
 
@@ -14,6 +14,7 @@ export default function DeleteProductButton({ productId, productName }: Props) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [, startTransition] = useTransition();
 
   async function handleConfirm() {
     setIsPending(true);
@@ -24,7 +25,9 @@ export default function DeleteProductButton({ productId, productName }: Props) {
         return;
       }
       setOpen(false);
-      router.refresh();
+      startTransition(() => {
+        router.refresh();
+      });
     } finally {
       setIsPending(false);
     }

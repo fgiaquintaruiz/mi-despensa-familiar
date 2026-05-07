@@ -7,6 +7,7 @@ import {
   importTicketItemsAction,
   consumeProductAction,
   restockProductAction,
+  bulkDeleteProductsAction,
 } from './actions';
 import { createClient } from '@/lib/supabase/server';
 
@@ -25,6 +26,7 @@ const mockQueryBuilder: any = {
   update: vi.fn().mockReturnThis(),
   delete: vi.fn().mockReturnThis(),
   eq: vi.fn().mockReturnThis(),
+  in: vi.fn().mockReturnThis(),
   limit: vi.fn().mockReturnThis(),
   single: vi.fn().mockReturnThis(),
   maybeSingle: vi.fn().mockReturnThis(),
@@ -500,6 +502,60 @@ describe('consumeProductAction — additional branches', () => {
 // ---------------------------------------------------------------------------
 // restockProductAction — additional branch coverage
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// bulkDeleteProductsAction
+// ---------------------------------------------------------------------------
+
+describe('bulkDeleteProductsAction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupSupabaseMock();
+    mockThen.mockImplementation((resolve) => resolve({ data: null, error: null }));
+  });
+
+  it('returns error when productIds array is empty', async () => {
+    const result = await bulkDeleteProductsAction([]);
+    expect(result.error).toBeDefined();
+  });
+
+  it('calls Supabase delete with correct IDs and household_id', async () => {
+    mockThen
+      // Membership
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      // Delete
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    const result = await bulkDeleteProductsAction(['p-1', 'p-2', 'p-3']);
+    expect(result).toEqual({});
+    expect(mockQueryBuilder.delete).toHaveBeenCalled();
+  });
+
+  it('calls revalidatePath on success', async () => {
+    const { revalidatePath } = await import('next/cache');
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: null }));
+
+    await bulkDeleteProductsAction(['p-1']);
+    expect(revalidatePath).toHaveBeenCalledWith('/', 'layout');
+  });
+
+  it('returns error on Supabase failure', async () => {
+    mockThen
+      .mockImplementationOnce((resolve) => resolve({ data: { household_id: 'hh-1' }, error: null }))
+      .mockImplementationOnce((resolve) => resolve({ data: null, error: { message: 'delete failed' } }));
+
+    const result = await bulkDeleteProductsAction(['p-1']);
+    expect(result.error).toBe('delete failed');
+  });
+
+  it('returns error when user is not authenticated', async () => {
+    setupSupabaseMock(null);
+    const result = await bulkDeleteProductsAction(['p-1']);
+    expect(result.error).toBe('No autenticado');
+  });
+});
 
 describe('restockProductAction', () => {
   beforeEach(() => {

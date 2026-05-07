@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ProductList from './ProductList';
 import type { Product } from '@/lib/types';
 
@@ -10,6 +10,16 @@ vi.mock('./DeleteProductButton', () => ({
     </button>
   ),
 }));
+
+vi.mock('../actions', () => ({
+  bulkDeleteProductsAction: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn(() => ({ refresh: vi.fn() })),
+}));
+
+import { bulkDeleteProductsAction } from '../actions';
 
 vi.mock('./ConsumeButton', () => ({
   default: ({ productId }: { productId: string }) => (
@@ -159,5 +169,133 @@ describe('ProductList', () => {
     const product = makeProduct({ current_stock: 0, min_stock: 0 });
     render(<ProductList products={[product]} />);
     expect(screen.queryByText('stock bajo')).not.toBeInTheDocument();
+  });
+});
+
+describe('ProductList — bulk delete', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('renders a checkbox for each product', () => {
+    const products = [
+      makeProduct({ id: 'p-1', name: 'Arroz' }),
+      makeProduct({ id: 'p-2', name: 'Leche' }),
+    ];
+    render(<ProductList products={products} />);
+    const checkboxes = screen.getAllByRole('checkbox');
+    // 2 product checkboxes + 1 select-all = 3 total
+    expect(checkboxes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows "Eliminar seleccionados" button when a checkbox is selected', async () => {
+    const product = makeProduct({ id: 'p-1', name: 'Arroz' });
+    render(<ProductList products={[product]} />);
+    const productCheckboxes = screen.getAllByRole('checkbox').filter(
+      (cb) => (cb as HTMLInputElement).dataset.productId === 'p-1'
+    );
+    expect(productCheckboxes.length).toBeGreaterThan(0);
+    fireEvent.click(productCheckboxes[0]);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /eliminar seleccionados/i })).toBeInTheDocument();
+    });
+  });
+
+  it('does not show "Eliminar seleccionados" when no checkboxes are selected', () => {
+    const product = makeProduct({ id: 'p-1', name: 'Arroz' });
+    render(<ProductList products={[product]} />);
+    expect(screen.queryByRole('button', { name: /eliminar seleccionados/i })).not.toBeInTheDocument();
+  });
+
+  it('clicking "Eliminar seleccionados" calls bulkDeleteProductsAction with correct IDs', async () => {
+    const products = [
+      makeProduct({ id: 'p-1', name: 'Arroz' }),
+      makeProduct({ id: 'p-2', name: 'Leche' }),
+    ];
+    render(<ProductList products={products} />);
+    const checkboxes = screen.getAllByRole('checkbox').filter(
+      (cb) => (cb as HTMLInputElement).dataset.productId !== undefined
+    );
+    fireEvent.click(checkboxes[0]);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /eliminar seleccionados/i })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /eliminar seleccionados/i }));
+    await waitFor(() => {
+      expect(bulkDeleteProductsAction).toHaveBeenCalledWith(expect.arrayContaining(['p-1']));
+    });
+  });
+
+  it('clears selection after successful bulk delete', async () => {
+    const product = makeProduct({ id: 'p-1', name: 'Arroz' });
+    render(<ProductList products={[product]} />);
+    const productCheckboxes = screen.getAllByRole('checkbox').filter(
+      (cb) => (cb as HTMLInputElement).dataset.productId === 'p-1'
+    );
+    fireEvent.click(productCheckboxes[0]);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /eliminar seleccionados/i })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /eliminar seleccionados/i }));
+    await waitFor(() => {
+      expect(bulkDeleteProductsAction).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /eliminar seleccionados/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('deselects a product when its checkbox is clicked a second time (toggleProduct delete branch)', async () => {
+    const product = makeProduct({ id: 'p-1', name: 'Arroz' });
+    render(<ProductList products={[product]} />);
+    const productCheckbox = screen.getAllByRole('checkbox').find(
+      (cb) => (cb as HTMLInputElement).dataset.productId === 'p-1'
+    ) as HTMLInputElement;
+    // Select
+    fireEvent.click(productCheckbox);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /eliminar seleccionados/i })).toBeInTheDocument();
+    });
+    // Deselect — exercises line 48 (next.delete)
+    fireEvent.click(productCheckbox);
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /eliminar seleccionados/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('deselects all products when toggleAll is clicked while all are selected (lines 57-60)', async () => {
+    const products = [
+      makeProduct({ id: 'p-1', name: 'Arroz' }),
+      makeProduct({ id: 'p-2', name: 'Leche' }),
+    ];
+    render(<ProductList products={products} />);
+    const selectAllCheckbox = screen.getByRole('checkbox', { name: /seleccionar todos/i });
+    // Select all — allSelected becomes true
+    fireEvent.click(selectAllCheckbox);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /eliminar seleccionados/i })).toBeInTheDocument();
+    });
+    // Deselect all — exercises lines 57-60 (allSelected branch of toggleAll)
+    fireEvent.click(selectAllCheckbox);
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /eliminar seleccionados/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows bulkError message when bulkDeleteProductsAction returns an error (lines 68-70)', async () => {
+    vi.mocked(bulkDeleteProductsAction).mockResolvedValueOnce({ error: 'Error al eliminar' });
+    const product = makeProduct({ id: 'p-1', name: 'Arroz' });
+    render(<ProductList products={[product]} />);
+    const productCheckbox = screen.getAllByRole('checkbox').find(
+      (cb) => (cb as HTMLInputElement).dataset.productId === 'p-1'
+    ) as HTMLInputElement;
+    fireEvent.click(productCheckbox);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /eliminar seleccionados/i })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /eliminar seleccionados/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Error al eliminar')).toBeInTheDocument();
+    });
+    // Selection should remain (early return, no clear)
+    expect(screen.getByRole('button', { name: /eliminar seleccionados/i })).toBeInTheDocument();
   });
 });

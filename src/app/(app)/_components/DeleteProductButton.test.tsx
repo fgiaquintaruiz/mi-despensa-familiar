@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import DeleteProductButton from './DeleteProductButton';
 
 vi.mock('../actions', () => ({
@@ -57,6 +57,27 @@ describe('DeleteProductButton', () => {
     fireEvent.click(confirmBtn);
     await waitFor(() => {
       expect(mockRefresh).toHaveBeenCalled();
+    });
+  });
+
+  it('calls router.refresh() inside startTransition after successful delete', async () => {
+    const mockRefresh = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({ push: vi.fn(), refresh: mockRefresh } as unknown as ReturnType<typeof useRouter>);
+    render(<DeleteProductButton productId="p-1" productName="Arroz" />);
+    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+    // Wait for dialog to appear
+    await waitFor(() => {
+      expect(screen.getByText(/No se puede deshacer/i)).toBeInTheDocument();
+    });
+    const confirmButtons = screen.getAllByRole('button', { name: /eliminar/i });
+    const confirmBtn = confirmButtons[confirmButtons.length - 1];
+    fireEvent.click(confirmBtn);
+    await waitFor(() => {
+      expect(mockRefresh).toHaveBeenCalledOnce();
+    });
+    // Dialog should be closed after successful delete
+    await waitFor(() => {
+      expect(screen.queryByText(/No se puede deshacer/i)).not.toBeInTheDocument();
     });
   });
 

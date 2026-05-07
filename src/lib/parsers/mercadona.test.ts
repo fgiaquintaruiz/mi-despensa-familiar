@@ -342,6 +342,56 @@ TOTAL (€) 6,10`;
 });
 
 // ---------------------------------------------------------------------------
+// pdf-parse v1.1.1 — concatenated format (no spaces between fields)
+// e.g. "2PAN H BRIOCHE1,102,20" instead of "2 PAN H BRIOCHE 1,10 2,20"
+// ---------------------------------------------------------------------------
+
+const PDF_PARSE_V111_TEXT = `MERCADONA, S.A.
+Descripción P. Unit Importe
+2PAN H BRIOCHE1,102,20
+1CEBOLLA 2 KG3,903,90
+1BURGER CERDO2,302,30
+TOTAL (€) 8,80
+TARJETA BANCARIA 8,80`;
+
+describe('mercadonaParser.parse — pdf-parse v1.1.1 concatenated format', () => {
+  it('extracts 3 items from concatenated-format text', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: PDF_PARSE_V111_TEXT });
+    expect(items).toHaveLength(3);
+  });
+
+  it('parses "2PAN H BRIOCHE1,102,20" → qty=2, name="PAN H BRIOCHE", price=1.10', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: PDF_PARSE_V111_TEXT });
+    const pan = items.find((i) => i.name === 'PAN H BRIOCHE');
+    expect(pan).toBeDefined();
+    expect(pan?.qty).toBe(2);
+    expect(pan?.price).toBeCloseTo(1.1);
+  });
+
+  it('parses "1CEBOLLA 2 KG3,903,90" → qty=1, name="CEBOLLA 2 KG", price=3.90', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: PDF_PARSE_V111_TEXT });
+    const cebolla = items.find((i) => i.name === 'CEBOLLA 2 KG');
+    expect(cebolla).toBeDefined();
+    expect(cebolla?.qty).toBe(1);
+    expect(cebolla?.price).toBeCloseTo(3.9);
+  });
+
+  it('parses "1BURGER CERDO2,302,30" → qty=1, name="BURGER CERDO", price=2.30', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: PDF_PARSE_V111_TEXT });
+    const burger = items.find((i) => i.name === 'BURGER CERDO');
+    expect(burger).toBeDefined();
+    expect(burger?.qty).toBe(1);
+    expect(burger?.price).toBeCloseTo(2.3);
+  });
+
+  it('maps "CEBOLLA 2 KG" to category "frescos" in concatenated format', async () => {
+    const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: PDF_PARSE_V111_TEXT });
+    const cebolla = items.find((i) => i.name === 'CEBOLLA 2 KG');
+    expect(cebolla?.category).toBe('frescos');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // mercadona.ts line 69 — early return [] branch coverage
 // extractItems returns [] when startIdx === -1 OR endIdx === -1
 // ---------------------------------------------------------------------------

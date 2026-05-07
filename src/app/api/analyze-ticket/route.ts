@@ -18,13 +18,11 @@ export const POST = async (req: Request) => {
       // Vercel serverless runtimes where pdf-parse CJS/native binding resolution
       // can fail at cold-start. Any load error is caught here, returned as JSON.
       //
-      // pdf-parse v2 exports a class-based API — no default function export.
-      // Constructor takes LoadParameters with a `data` field; getText() returns
-      // { text: string, pages: [...], total: {...} }.
-      const { PDFParse } = await import('pdf-parse') as unknown as { PDFParse: new (opts: { data: Buffer; verbosity: number }) => { getText(): Promise<{ text: string }>; destroy(): Promise<void> } };
-      const parser = new PDFParse({ data: buffer, verbosity: 0 });
-      const result = await parser.getText();
-      await parser.destroy();
+      // pdf-parse v1.1.1 exports a default function: pdfParse(buffer) => Promise<{ text, numpages, ... }>
+      // v2.x was avoided because it depends on pdfjs-dist which requires DOMMatrix (browser API),
+      // unavailable in Vercel serverless Node.js runtime.
+      const { default: pdfParse } = await import('pdf-parse');
+      const result = await pdfParse(buffer);
       text = result.text;
     } catch (e) {
       return NextResponse.json(

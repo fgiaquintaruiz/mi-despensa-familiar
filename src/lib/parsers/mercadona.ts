@@ -31,6 +31,11 @@ function mapCategory(name: string): Category {
   return 'despensa';
 }
 
+// pdf-parse v1.1.1 fix: no-space concatenated format e.g. "2PAN H BRIOCHE1,102,20"
+// Pattern: digit(s) immediately followed by uppercase letter (no space), then name,
+// then one or two prices (Spanish decimal: comma) with no space separator.
+const CONCAT_ITEM_REGEX = /^(\d+)([A-ZÁÉÍÓÚÑ][A-Za-záéíóúüñÁÉÍÓÚÜÑ0-9\s\-\.]+?)(\d+,\d{2})(\d+,\d{2})?$/;
+
 // Bug 2 fix: tolerate up to 4 non-digit OCR prefix chars (e.g. "MJ ", "ha ")
 const ITEM_REGEX = /^(?:[^0-9]{0,4})?(\d+)\s+(.+?)\s+(\d+,\d{2})(?:\s+(\d+,\d{2}))?$/;
 
@@ -85,6 +90,21 @@ function extractItems(text: string): ParsedTicketItem[] {
       const rawName = prevName ?? '';
       const name = isValidName(rawName) ? rawName : '(Producto por peso)';
       items.push({ name, qty, unit: 'kg', price, category: mapCategory(name) });
+      prevName = null;
+      continue;
+    }
+
+    // pdf-parse v1.1.1: try concatenated format first (no spaces between fields)
+    const concatMatch = CONCAT_ITEM_REGEX.exec(trimmed);
+    if (concatMatch) {
+      const name = concatMatch[2].trim();
+      items.push({
+        name,
+        qty: parseInt(concatMatch[1], 10),
+        unit: '',
+        price: parseEuro(concatMatch[3]),
+        category: mapCategory(name),
+      });
       prevName = null;
       continue;
     }

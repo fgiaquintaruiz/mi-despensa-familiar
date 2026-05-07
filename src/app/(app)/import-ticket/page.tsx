@@ -270,14 +270,16 @@ export default function ImportTicketPage() {
         setAnalyzing(true);
         setAnalyzingSource('photo');
         const { items: retryItems, error: retryError } = await ocr.retryWithHint(detectedSupermarket);
-        setAnalyzing(false);
-        setAnalyzingSource(null);
 
         if (retryError || retryItems.length === 0) {
+          setAnalyzing(false);
+          setAnalyzingSource(null);
           setShowHintSelector(true);
           return;
         }
 
+        setAnalyzing(false);
+        setAnalyzingSource(null);
         const newRows = (retryItems as TicketItem[]).map((item) => ({ ...item, selected: true }));
         setRows(newRows);
         setAutoDetected(true);

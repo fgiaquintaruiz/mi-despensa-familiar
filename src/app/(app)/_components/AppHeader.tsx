@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import NotificationPermission from '@/components/NotificationPermission';
 import LogoutButton from './LogoutButton';
@@ -8,12 +9,37 @@ import pkg from '../../../../package.json';
 
 export default function AppHeader() {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   return (
     <div className="mb-6 flex items-center justify-between">
-      <div>
-        <h1 className="text-3xl font-extrabold text-[var(--color-brand)]">Mi Despensa</h1>
-        <span className="text-xs text-gray-400">v{pkg.version}</span>
+      <div className="flex items-center gap-2">
+        {pathname !== '/' && (
+          <button
+            aria-label="Volver"
+            onClick={() => router.back()}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-brand)] text-[var(--color-brand)]"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5"
+              aria-hidden="true"
+            >
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+        )}
+        <div>
+          <h1 className="text-3xl font-extrabold text-[var(--color-brand)]">Mi Despensa</h1>
+          <span className="text-xs text-gray-400">v{pkg.version}</span>
+        </div>
       </div>
 
       <button

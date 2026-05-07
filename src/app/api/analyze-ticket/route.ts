@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
+import pdfParse from 'pdf-parse';
 import { findParser } from '@/lib/parsers';
+
+const isPdf = (filename: string) => filename.toLowerCase().endsWith('.pdf');
 
 export const POST = async (req: Request) => {
   const formData = await req.formData();
@@ -8,10 +11,17 @@ export const POST = async (req: Request) => {
     return NextResponse.json({ error: 'file required' }, { status: 400 });
   }
   const buffer = Buffer.from(await file.arrayBuffer());
-  const parser = findParser({ filename: file.name });
+
+  let text: string | undefined;
+  if (isPdf(file.name)) {
+    const parsed = await pdfParse(buffer);
+    text = parsed.text;
+  }
+
+  const parser = findParser({ filename: file.name, text });
   if (!parser) {
     return NextResponse.json({ error: 'no parser matched', items: [] }, { status: 422 });
   }
-  const items = await parser.parse({ buffer });
+  const items = await parser.parse({ buffer, text });
   return NextResponse.json({ store: parser.store, items });
 };

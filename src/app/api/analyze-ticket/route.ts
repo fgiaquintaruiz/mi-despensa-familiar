@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import pdfParse from 'pdf-parse';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number; info: Record<string, unknown> }>;
 import { findParser } from '@/lib/parsers';
 
 const isPdf = (filename: string) => filename.toLowerCase().endsWith('.pdf');

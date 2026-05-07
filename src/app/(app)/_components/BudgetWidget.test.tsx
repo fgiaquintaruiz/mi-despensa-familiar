@@ -28,6 +28,7 @@ function makeSummary(spent: number, amount: number, currency: BudgetCurrency = '
     manual_amount,
     auto_amount,
     has_manual,
+    transactions: [],
   };
 }
 

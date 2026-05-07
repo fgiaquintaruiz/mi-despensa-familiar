@@ -63,23 +63,23 @@ describe('EditForm', () => {
   });
 
   it('renders with the product name pre-loaded', () => {
-    render(<EditForm product={makeProduct()} />);
+    render(<EditForm product={makeProduct()} priceHistory={[]} />);
     expect(screen.getByDisplayValue('Arroz')).toBeInTheDocument();
   });
 
   it('renders with the product category pre-selected', () => {
-    render(<EditForm product={makeProduct({ category: 'despensa' })} />);
+    render(<EditForm product={makeProduct({ category: 'despensa' })} priceHistory={[]} />);
     const chip = screen.getByRole('button', { name: /Despensa/i });
     expect(chip).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('Guardar cambios button is enabled when name is filled', () => {
-    render(<EditForm product={makeProduct()} />);
+    render(<EditForm product={makeProduct()} priceHistory={[]} />);
     expect(screen.getByRole('button', { name: /guardar cambios/i })).not.toBeDisabled();
   });
 
   it('Guardar cambios button is disabled when name is empty', () => {
-    render(<EditForm product={makeProduct({ name: 'Arroz' })} />);
+    render(<EditForm product={makeProduct({ name: 'Arroz' })} priceHistory={[]} />);
     const input = screen.getByDisplayValue('Arroz');
     fireEvent.change(input, { target: { value: '' } });
     expect(screen.getByRole('button', { name: /guardar cambios/i })).toBeDisabled();
@@ -88,7 +88,7 @@ describe('EditForm', () => {
   it('clicking Cancelar calls router.push("/")', () => {
     const mockPush = vi.fn();
     vi.mocked(useRouter).mockReturnValue({ push: mockPush, refresh: vi.fn() } as unknown as ReturnType<typeof useRouter>);
-    render(<EditForm product={makeProduct()} />);
+    render(<EditForm product={makeProduct()} priceHistory={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
     expect(mockPush).toHaveBeenCalledWith('/');
   });
@@ -96,24 +96,24 @@ describe('EditForm', () => {
   // ── stock counter ────────────────────────────────────────────────
 
   it('renders the current stock pre-loaded from product', () => {
-    render(<EditForm product={makeProduct({ current_stock: 5 })} />);
+    render(<EditForm product={makeProduct({ current_stock: 5 })} priceHistory={[]} />);
     expect(screen.getByTestId('stock-counter')).toHaveTextContent('5');
   });
 
   it('incrementing current stock updates the counter', () => {
-    render(<EditForm product={makeProduct({ current_stock: 2 })} />);
+    render(<EditForm product={makeProduct({ current_stock: 2 })} priceHistory={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /incrementar cantidad actual/i }));
     expect(screen.getByTestId('stock-counter')).toHaveTextContent('3');
   });
 
   it('decrementing current stock updates the counter', () => {
-    render(<EditForm product={makeProduct({ current_stock: 2 })} />);
+    render(<EditForm product={makeProduct({ current_stock: 2 })} priceHistory={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /decrementar cantidad actual/i }));
     expect(screen.getByTestId('stock-counter')).toHaveTextContent('1');
   });
 
   it('current stock does not go below 0', () => {
-    render(<EditForm product={makeProduct({ current_stock: 0 })} />);
+    render(<EditForm product={makeProduct({ current_stock: 0 })} priceHistory={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /decrementar cantidad actual/i }));
     expect(screen.getByTestId('stock-counter')).toHaveTextContent('0');
   });
@@ -121,7 +121,7 @@ describe('EditForm', () => {
   // ── min-stock counter ────────────────────────────────────────────
 
   it('incrementing min stock updates its display', () => {
-    render(<EditForm product={makeProduct({ min_stock: 1 })} />);
+    render(<EditForm product={makeProduct({ min_stock: 1 })} priceHistory={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /incrementar stock mínimo/i }));
     // min_stock display is not data-testid'd, but it is the second numeric counter
     const counters = screen.getAllByText('2');
@@ -129,7 +129,7 @@ describe('EditForm', () => {
   });
 
   it('decrementing min stock does not go below 0', () => {
-    render(<EditForm product={makeProduct({ min_stock: 0 })} />);
+    render(<EditForm product={makeProduct({ min_stock: 0 })} priceHistory={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /decrementar stock mínimo/i }));
     // min_stock stays at 0
     const zeroDisplays = screen.getAllByText('0');
@@ -139,7 +139,7 @@ describe('EditForm', () => {
   // ── category chip ─────────────────────────────────────────────────
 
   it('clicking a different category chip selects it', () => {
-    render(<EditForm product={makeProduct({ category: 'despensa' })} />);
+    render(<EditForm product={makeProduct({ category: 'despensa' })} priceHistory={[]} />);
     const higiene = screen.getByRole('button', { name: /Higiene/i });
     fireEvent.click(higiene);
     expect(higiene).toHaveAttribute('aria-pressed', 'true');
@@ -149,21 +149,21 @@ describe('EditForm', () => {
 
   it('pre-fills expiry fields from product.expires_at', () => {
     const product = makeProduct({ expires_at: '2025-12-31T00:00:00Z' });
-    render(<EditForm product={product} />);
+    render(<EditForm product={product} priceHistory={[]} />);
     expect(screen.getByPlaceholderText('DD')).toHaveValue(31);
     expect(screen.getByPlaceholderText('MM')).toHaveValue(12);
     expect(screen.getByPlaceholderText('AAAA')).toHaveValue(2025);
   });
 
   it('expiry fields are empty when expires_at is null', () => {
-    render(<EditForm product={makeProduct({ expires_at: null })} />);
+    render(<EditForm product={makeProduct({ expires_at: null })} priceHistory={[]} />);
     expect(screen.getByPlaceholderText('DD')).toHaveValue(null);
     expect(screen.getByPlaceholderText('MM')).toHaveValue(null);
     expect(screen.getByPlaceholderText('AAAA')).toHaveValue(null);
   });
 
   it('typing into expiry day field updates its value', () => {
-    render(<EditForm product={makeProduct({ expires_at: null })} />);
+    render(<EditForm product={makeProduct({ expires_at: null })} priceHistory={[]} />);
     fireEvent.change(screen.getByPlaceholderText('DD'), { target: { value: '15' } });
     expect(screen.getByPlaceholderText('DD')).toHaveValue(15);
   });
@@ -176,7 +176,7 @@ describe('EditForm', () => {
       vi.fn(),
       false,
     ]);
-    render(<EditForm product={makeProduct()} />);
+    render(<EditForm product={makeProduct()} priceHistory={[]} />);
     expect(screen.getByText('No se pudo guardar el producto.')).toBeInTheDocument();
   });
 
@@ -200,7 +200,7 @@ describe('EditForm', () => {
   });
 
   it('defaults priceHistory to empty array when not provided', () => {
-    render(<EditForm product={makeProduct()} />);
+    render(<EditForm product={makeProduct()} priceHistory={[]} />);
     expect(screen.queryByText(/historial de precios/i)).not.toBeInTheDocument();
   });
 });

@@ -24,7 +24,7 @@ describe('BarcodeScanner', () => {
       videoRef: { current: null },
       isSupported: true,
       isScanning: false,
-      startScan,
+      startScan: startScan as unknown as () => Promise<void>,
       stopScan,
     });
     return { startScan, stopScan };

@@ -1,20 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from './route';
 
-// Mock pdf-parse BEFORE any import resolves it
-vi.mock('pdf-parse', () => ({
-  default: vi.fn(),
+// Use vi.hoisted so these refs are available inside vi.mock() factory closures.
+// Without hoisting, the top-level const declarations are TDZ when the mock factory runs.
+const { mockGetText, mockDestroy } = vi.hoisted(() => ({
+  mockGetText: vi.fn(),
+  mockDestroy: vi.fn(),
 }));
+
+// Mock pdf-parse BEFORE any import resolves it.
+// pdf-parse v2 exports a class `PDFParse` (no default function).
+// We must use a `function` declaration (not arrow fn) so Vitest treats it as a constructor.
+vi.mock('pdf-parse', () => {
+  return {
+    // eslint-disable-next-line prefer-arrow-callback
+    PDFParse: vi.fn(function PDFParseConstructor() {
+      return {
+        getText: mockGetText,
+        destroy: mockDestroy,
+      };
+    }),
+  };
+});
 
 // Mock findParser to isolate the route from real parsers
 vi.mock('@/lib/parsers', () => ({
   findParser: vi.fn(),
 }));
 
-import pdfParse from 'pdf-parse';
+import { PDFParse as MockPDFParse } from 'pdf-parse';
 import { findParser } from '@/lib/parsers';
-
-const mockPdfParse = vi.mocked(pdfParse);
 const mockFindParser = vi.mocked(findParser);
 
 function makePdfFormData(filename = 'mercadona.pdf'): FormData {
@@ -34,11 +49,22 @@ function makeRequest(formData: FormData): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Re-apply implementations after clearAllMocks resets them.
+  // clearAllMocks() wipes mockImplementation on MockPDFParse too.
+  // Must use a `function` expression (not arrow fn) for Vitest's `new` support.
+  // eslint-disable-next-line prefer-arrow-callback
+  vi.mocked(MockPDFParse).mockImplementation(function () {
+    return {
+      getText: mockGetText,
+      destroy: mockDestroy,
+    };
+  });
+  mockDestroy.mockResolvedValue(undefined);
 });
 
 describe('POST /api/analyze-ticket — PDF path', () => {
-  it('calls pdf-parse with the file buffer', async () => {
-    mockPdfParse.mockResolvedValue({ text: 'LECHE ENTERA 1,25\n', numpages: 1, numrender: 1, info: {}, metadata: {}, version: '1.4' } as never);
+  it('constructs PDFParse with the file buffer and calls getText()', async () => {
+    mockGetText.mockResolvedValue({ text: 'LECHE ENTERA 1,25\n', pages: [], total: {} });
     mockFindParser.mockReturnValue({
       store: 'mercadona',
       canParse: () => true,
@@ -48,14 +74,15 @@ describe('POST /api/analyze-ticket — PDF path', () => {
     const req = makeRequest(makePdfFormData('mercadona.pdf'));
     await POST(req);
 
-    expect(mockPdfParse).toHaveBeenCalledOnce();
-    const calledBuffer = mockPdfParse.mock.calls[0][0];
-    expect(Buffer.isBuffer(calledBuffer)).toBe(true);
+    expect(MockPDFParse).toHaveBeenCalledOnce();
+    const constructorArg = MockPDFParse.mock.calls[0][0];
+    expect(Buffer.isBuffer(constructorArg.data)).toBe(true);
+    expect(mockGetText).toHaveBeenCalledOnce();
   });
 
   it('passes extracted text to the parser', async () => {
     const extractedText = 'LECHE ENTERA 1,25\nPAN BIMBO 2,10\n';
-    mockPdfParse.mockResolvedValue({ text: extractedText, numpages: 1, numrender: 1, info: {}, metadata: {}, version: '1.4' } as never);
+    mockGetText.mockResolvedValue({ text: extractedText, pages: [], total: {} });
 
     const mockParse = vi.fn().mockResolvedValue([
       { name: 'LECHE ENTERA', qty: 1, unit: 'ud', price: 1.25, category: 'frescos' },
@@ -75,7 +102,7 @@ describe('POST /api/analyze-ticket — PDF path', () => {
   });
 
   it('returns non-empty items when parser finds products', async () => {
-    mockPdfParse.mockResolvedValue({ text: 'LECHE ENTERA 1,25\n', numpages: 1, numrender: 1, info: {}, metadata: {}, version: '1.4' } as never);
+    mockGetText.mockResolvedValue({ text: 'LECHE ENTERA 1,25\n', pages: [], total: {} });
     mockFindParser.mockReturnValue({
       store: 'mercadona',
       canParse: () => true,
@@ -101,7 +128,7 @@ describe('POST /api/analyze-ticket — PDF path', () => {
   });
 
   it('returns 422 when no parser matches', async () => {
-    mockPdfParse.mockResolvedValue({ text: 'unknown store', numpages: 1, numrender: 1, info: {}, metadata: {}, version: '1.4' } as never);
+    mockGetText.mockResolvedValue({ text: 'unknown store', pages: [], total: {} });
     mockFindParser.mockReturnValue(undefined);
 
     const req = makeRequest(makePdfFormData('unknown.pdf'));
@@ -110,7 +137,7 @@ describe('POST /api/analyze-ticket — PDF path', () => {
   });
 
   it('returns JSON 500 with error body when pdf-parse throws', async () => {
-    mockPdfParse.mockRejectedValue(new Error('PDF corrupted'));
+    mockGetText.mockRejectedValue(new Error('PDF corrupted'));
 
     const req = makeRequest(makePdfFormData('corrupt.pdf'));
     const res = await POST(req);

@@ -108,4 +108,15 @@ describe('POST /api/analyze-ticket — PDF path', () => {
     const res = await POST(req);
     expect(res.status).toBe(422);
   });
+
+  it('returns JSON 500 with error body when pdf-parse throws', async () => {
+    mockPdfParse.mockRejectedValue(new Error('PDF corrupted'));
+
+    const req = makeRequest(makePdfFormData('corrupt.pdf'));
+    const res = await POST(req);
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(typeof body.error).toBe('string');
+  });
 });

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number; info: Record<string, unknown> }>;
+import pdfParse from 'pdf-parse';
 import { findParser } from '@/lib/parsers';
 
 const isPdf = (filename: string) => filename.toLowerCase().endsWith('.pdf');
@@ -15,8 +14,15 @@ export const POST = async (req: Request) => {
 
   let text: string | undefined;
   if (isPdf(file.name)) {
-    const parsed = await pdfParse(buffer);
-    text = parsed.text;
+    try {
+      const parsed = await pdfParse(buffer);
+      text = parsed.text;
+    } catch (e) {
+      return NextResponse.json(
+        { error: 'PDF parsing failed', detail: e instanceof Error ? e.message : 'Unknown error' },
+        { status: 500 },
+      );
+    }
   }
 
   const parser = findParser({ filename: file.name, text });

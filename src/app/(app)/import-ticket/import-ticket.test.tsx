@@ -43,6 +43,17 @@ function mockFetchEmpty() {
   );
 }
 
+function mockFetchError(status: number, body: object = { error: 'Internal server error' }) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: false,
+      status,
+      json: () => Promise.resolve(body),
+    }),
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -137,6 +148,36 @@ describe('ImportTicketPage', () => {
       expect(importTicketItemsAction).toHaveBeenCalledOnce();
       expect(mockPush).toHaveBeenCalledWith('/?imported=2');
     });
+  });
+
+  it('shows server error message and clears analyzing state when API returns 500', async () => {
+    mockFetchError(500, { error: 'Internal server error' });
+    render(<ImportTicketPage />);
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['pdf content'], 'ticket.pdf', { type: 'application/pdf' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Internal server error')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/analizando pdf/i)).not.toBeInTheDocument();
+  });
+
+  it('shows fallback error message when API returns non-200 with no error body', async () => {
+    mockFetchError(422, {});
+    render(<ImportTicketPage />);
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['pdf content'], 'ticket.pdf', { type: 'application/pdf' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/error al analizar el pdf/i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/analizando pdf/i)).not.toBeInTheDocument();
   });
 
   it('calls router.push after successful import', async () => {

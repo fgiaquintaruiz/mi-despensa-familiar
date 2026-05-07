@@ -80,6 +80,7 @@ export default function ImportTicketPage() {
   const [detectedStore, setDetectedStore] = useState<string | null>(null);
   /** True while brand lookup requests are in flight. */
   const [isEnrichingBrands, setIsEnrichingBrands] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ocr = useOcr();
@@ -203,6 +204,7 @@ export default function ImportTicketPage() {
     setNoDetection(false);
     setImported(null);
     setImportError(null);
+    setAnalyzeError(null);
     setIsCollapsed(true);
     setAutoDetected(false);
     setDetectedStore(null);
@@ -212,6 +214,16 @@ export default function ImportTicketPage() {
     formData.append('file', file);
 
     const res = await fetch('/api/analyze-ticket', { method: 'POST', body: formData });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({})) as { error?: string };
+      setAnalyzing(false);
+      setAnalyzingSource(null);
+      setAnalyzeError(errBody.error ?? 'Error al analizar el PDF. Intentá de nuevo.');
+      return;
+    }
+
+    setAnalyzeError(null);
     const data = await res.json();
 
     setAnalyzing(false);
@@ -425,6 +437,10 @@ export default function ImportTicketPage() {
               : 'Cargando motor OCR...'
             : 'Analizando PDF...'}
         </p>
+      )}
+
+      {analyzeError && (
+        <p className="mt-2 text-sm text-red-500">{analyzeError}</p>
       )}
 
       {noDetection && (

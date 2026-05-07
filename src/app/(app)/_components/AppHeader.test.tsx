@@ -1,10 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { usePathname } from 'next/navigation';
 import AppHeader from './AppHeader';
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
+
+vi.mock('next/navigation', () => ({
+  usePathname: vi.fn().mockReturnValue('/'),
+  useRouter: vi.fn().mockReturnValue({ back: vi.fn() }),
+  useSearchParams: vi.fn().mockReturnValue(new URLSearchParams()),
+}));
 
 // next/link renders an <a> in test environment — no mock needed.
 // Mock child components that have their own complex dependencies.
@@ -132,5 +139,20 @@ describe('AppHeader', () => {
     fireEvent.click(screen.getByRole('button', { name: /abrir menú/i }));
 
     expect(document.getElementById('app-menu')).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // 10. Back button — only shown when not on root path
+  // -------------------------------------------------------------------------
+  it('shows back button when not on root path', () => {
+    vi.mocked(usePathname).mockReturnValue('/budget');
+    render(<AppHeader />);
+    expect(screen.getByRole('button', { name: /volver/i })).toBeInTheDocument();
+  });
+
+  it('does not show back button on root path', () => {
+    vi.mocked(usePathname).mockReturnValue('/');
+    render(<AppHeader />);
+    expect(screen.queryByRole('button', { name: /volver/i })).not.toBeInTheDocument();
   });
 });

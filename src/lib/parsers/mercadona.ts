@@ -1,5 +1,6 @@
 import type { TicketParser, ParsedTicketItem } from './types';
 import type { Category } from '@/lib/types';
+import { toTitleCase } from '@/lib/utils/text';
 
 const CATEGORY_KEYWORDS: Array<[string[], Category]> = [
   [
@@ -88,7 +89,7 @@ function extractItems(text: string): ParsedTicketItem[] {
       const price = parseEuro(weightMatch[2]);
       // Bug 1 fix: validate prevName — reject garbage like "Ns" that fails length/letter check
       const rawName = prevName ?? '';
-      const name = isValidName(rawName) ? rawName : '(Producto por peso)';
+      const name = isValidName(rawName) ? toTitleCase(rawName) : '(Producto por peso)';
       items.push({ name, qty, unit: 'kg', price, category: mapCategory(name) });
       prevName = null;
       continue;
@@ -97,7 +98,7 @@ function extractItems(text: string): ParsedTicketItem[] {
     // pdf-parse v1.1.1: try concatenated format first (no spaces between fields)
     const concatMatch = CONCAT_ITEM_REGEX.exec(trimmed);
     if (concatMatch) {
-      const name = concatMatch[2].trim();
+      const name = toTitleCase(concatMatch[2].trim());
       items.push({
         name,
         qty: parseInt(concatMatch[1], 10),
@@ -133,7 +134,7 @@ function extractItems(text: string): ParsedTicketItem[] {
       // Guard: skip if this looks like a weight line (already handled above, but be safe)
       const noQtyMatch = NO_QTY_ITEM_REGEX.exec(trimmed);
       if (noQtyMatch && noQtyMatch[1].trim().length >= 4) {
-        const name = noQtyMatch[1].trim();
+        const name = toTitleCase(noQtyMatch[1].trim());
         items.push({
           name,
           qty: 1,
@@ -150,7 +151,7 @@ function extractItems(text: string): ParsedTicketItem[] {
       continue;
     }
 
-    const name = match[2].trim();
+    const name = toTitleCase(match[2].trim());
     items.push({
       name,
       qty: parseInt(match[1], 10),

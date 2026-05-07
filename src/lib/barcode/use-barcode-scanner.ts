@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] as const;
 
@@ -25,14 +25,19 @@ export function useBarcodeScanner(onDetected: (barcode: string) => void): {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
+  const onDetectedRef = useRef(onDetected);
   const [isScanning, setIsScanning] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
+
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+  });
 
   useEffect(() => {
     setIsSupported(typeof window !== 'undefined' && 'BarcodeDetector' in window);
   }, []);
 
-  function stopScan() {
+  const stopScan = useCallback(function stopScan() {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -45,10 +50,10 @@ export function useBarcodeScanner(onDetected: (barcode: string) => void): {
       videoRef.current.srcObject = null;
     }
     setIsScanning(false);
-  }
+  }, []);
 
-  async function startScan() {
-    if (!isSupported) return;
+  const startScan = useCallback(async function startScan() {
+    if (typeof window === 'undefined' || !window.BarcodeDetector) return;
 
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment' },
@@ -66,14 +71,14 @@ export function useBarcodeScanner(onDetected: (barcode: string) => void): {
 
     setIsScanning(true);
 
-    const detector = new window.BarcodeDetector!({ formats: FORMATS });
+    const detector = new window.BarcodeDetector({ formats: FORMATS });
 
     function loop() {
       if (!videoRef.current) return;
 
       detector.detect(videoRef.current).then((barcodes) => {
         if (barcodes.length > 0) {
-          onDetected(barcodes[0].rawValue);
+          onDetectedRef.current(barcodes[0].rawValue);
           stopScan();
         } else {
           rafRef.current = requestAnimationFrame(loop);
@@ -84,7 +89,7 @@ export function useBarcodeScanner(onDetected: (barcode: string) => void): {
     }
 
     rafRef.current = requestAnimationFrame(loop);
-  }
+  }, [stopScan]);
 
   return { videoRef, isSupported, isScanning, startScan, stopScan };
 }

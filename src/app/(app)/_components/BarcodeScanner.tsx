@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useBarcodeScanner } from '@/lib/barcode/use-barcode-scanner';
 
 interface Props {
@@ -10,14 +10,19 @@ interface Props {
 
 export default function BarcodeScanner({ onScanned, onClose }: Props) {
   const { videoRef, startScan, stopScan } = useBarcodeScanner(onScanned);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     startScan().catch(() => {
       stopScan();
-      onClose();
+      onCloseRef.current();
     });
     return () => stopScan();
-  }, []);
+  }, [startScan, stopScan]);
 
   function handleCancel() {
     stopScan();

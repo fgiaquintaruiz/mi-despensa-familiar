@@ -86,33 +86,33 @@ describe('mercadonaParser.parse', () => {
     expect(items).toHaveLength(4);
   });
 
-  it('extracts qty=2 for "PAN H BRIOCHE"', async () => {
+  it('extracts qty=2 for "Pan H Brioche"', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
-    const pan = items.find((i) => i.name === 'PAN H BRIOCHE');
+    const pan = items.find((i) => i.name === 'Pan H Brioche');
     expect(pan?.qty).toBe(2);
   });
 
-  it('extracts unit price 1.10 for PAN H BRIOCHE (first price in multi-price line)', async () => {
+  it('extracts unit price 1.10 for Pan H Brioche (first price in multi-price line)', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
-    const pan = items.find((i) => i.name === 'PAN H BRIOCHE');
+    const pan = items.find((i) => i.name === 'Pan H Brioche');
     expect(pan?.price).toBeCloseTo(1.1);
   });
 
-  it('extracts price 3.90 for CEBOLLA 2 KG (single-unit item)', async () => {
+  it('extracts price 3.90 for Cebolla 2 Kg (single-unit item)', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
-    const cebolla = items.find((i) => i.name === 'CEBOLLA 2 KG');
+    const cebolla = items.find((i) => i.name === 'Cebolla 2 Kg');
     expect(cebolla?.price).toBeCloseTo(3.9);
   });
 
-  it('maps "CEBOLLA" to category "frescos"', async () => {
+  it('maps "Cebolla" to category "frescos"', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
-    const cebolla = items.find((i) => i.name === 'CEBOLLA 2 KG');
+    const cebolla = items.find((i) => i.name === 'Cebolla 2 Kg');
     expect(cebolla?.category).toBe('frescos');
   });
 
-  it('maps "NUGGETS DE POLLO" to category "frescos"', async () => {
+  it('maps "Nuggets de Pollo" to category "frescos"', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: SAMPLE_TEXT });
-    const nuggets = items.find((i) => i.name === 'NUGGETS DE POLLO');
+    const nuggets = items.find((i) => i.name === 'Nuggets de Pollo');
     expect(nuggets?.category).toBe('frescos');
   });
 
@@ -121,13 +121,13 @@ describe('mercadonaParser.parse', () => {
     expect(items.every((i) => !i.name.includes('TOTAL'))).toBe(true);
   });
 
-  it('maps "GALLETA" to category "despensa" when present', async () => {
+  it('maps "Galleta" to category "despensa" when present', async () => {
     const gallettaText = `MERCADONA, S.A.
 Descripción P. Unit Importe
 1 GALLETA RELIEVE 1,35
 TOTAL (€) 1,35`;
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: gallettaText });
-    const galleta = items.find((i) => i.name === 'GALLETA RELIEVE');
+    const galleta = items.find((i) => i.name === 'Galleta Relieve');
     expect(galleta?.category).toBe('despensa');
   });
 
@@ -137,10 +137,10 @@ TOTAL (€) 1,35`;
     expect(items.length).toBeGreaterThanOrEqual(1);
   });
 
-  // Bug 2 — OCR prefix noise: "MJ 1 FIGURITAS MERLUZA 3,60" → qty=1, name="FIGURITAS MERLUZA"
+  // Bug 2 — OCR prefix noise: "MJ 1 FIGURITAS MERLUZA 3,60" → qty=1, name="Figuritas Merluza"
   it('parses item with OCR prefix "MJ" (e.g. "MJ 1 FIGURITAS MERLUZA 3,60") with qty=1', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: NOISY_OCR_TEXT });
-    const merluza = items.find((i) => i.name === 'FIGURITAS MERLUZA');
+    const merluza = items.find((i) => i.name === 'Figuritas Merluza');
     expect(merluza).toBeDefined();
     expect(merluza?.qty).toBe(1);
     expect(merluza?.price).toBeCloseTo(3.6);
@@ -183,7 +183,7 @@ TARJETA BANCARIA 1,38`;
   });
 
   // Bug 1 new — valid prevName ("1 BANANA") should be captured correctly
-  it('weight item with valid prevName ("1 BANANA") uses "BANANA" as name', async () => {
+  it('weight item with valid prevName ("1 BANANA") uses "Banana" as name (title-cased)', async () => {
     const validPrevNameText = `MERCADONA, S.A.
 Descripción P. Unit Importe
 1 BANANA
@@ -192,22 +192,22 @@ TARJETA BANCARIA 1,38`;
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: validPrevNameText });
     const banana = items.find((i) => i.name.toUpperCase().includes('BANANA'));
     expect(banana).toBeDefined();
-    expect(banana?.name).toBe('BANANA');
+    expect(banana?.name).toBe('Banana');
     expect(banana?.qty).toBeCloseTo(0.89);
   });
 
-  // Bug 2 new — no-qty item: "MU MOUSSE CCO P-4 1,20" → qty=1, name="MOUSSE CCO P-4"
-  it('parses no-qty item "MU MOUSSE CCO P-4 1,20" with qty=1 and name="MOUSSE CCO P-4"', async () => {
+  // Bug 2 new — no-qty item: "MU MOUSSE CCO P-4 1,20" → qty=1, name="Mousse Cco P-4"
+  it('parses no-qty item "MU MOUSSE CCO P-4 1,20" with qty=1 and name="Mousse Cco P-4"', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: NOISY_OCR_TEXT });
     const mousse = items.find((i) => i.name.toUpperCase().includes('MOUSSE'));
     expect(mousse).toBeDefined();
     expect(mousse?.qty).toBe(1);
     expect(mousse?.price).toBeCloseTo(1.2);
-    expect(mousse?.name).toBe('MOUSSE CCO P-4');
+    expect(mousse?.name).toBe('Mousse Cco P-4');
   });
 
-  // Bug 2 new — no-qty item: "MAN EMPANADA ATUN 3,60" → qty=1, name="EMPANADA ATUN"
-  it('parses no-qty item "MAN EMPANADA ATUN 3,60" with qty=1 and name="EMPANADA ATUN"', async () => {
+  // Bug 2 new — no-qty item: "MAN EMPANADA ATUN 3,60" → qty=1, name="Empanada Atun"
+  it('parses no-qty item "MAN EMPANADA ATUN 3,60" with qty=1 and name="Empanada Atun"', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: NOISY_OCR_TEXT });
     const empanada = items.find((i) => i.name.toUpperCase().includes('EMPANADA ATUN'));
     expect(empanada).toBeDefined();
@@ -334,9 +334,9 @@ Descripción P. Unit Importe
 TOTAL (€) 6,10`;
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: textWithEmptyLines });
     expect(items).toHaveLength(2);
-    const pan = items.find((i) => i.name === 'PAN H BRIOCHE');
+    const pan = items.find((i) => i.name === 'Pan H Brioche');
     expect(pan?.qty).toBe(2);
-    const cebolla = items.find((i) => i.name === 'CEBOLLA 2 KG');
+    const cebolla = items.find((i) => i.name === 'Cebolla 2 Kg');
     expect(cebolla?.price).toBeCloseTo(3.9);
   });
 });
@@ -360,33 +360,33 @@ describe('mercadonaParser.parse — pdf-parse v1.1.1 concatenated format', () =>
     expect(items).toHaveLength(3);
   });
 
-  it('parses "2PAN H BRIOCHE1,102,20" → qty=2, name="PAN H BRIOCHE", price=1.10', async () => {
+  it('parses "2PAN H BRIOCHE1,102,20" → qty=2, name="Pan H Brioche", price=1.10', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: PDF_PARSE_V111_TEXT });
-    const pan = items.find((i) => i.name === 'PAN H BRIOCHE');
+    const pan = items.find((i) => i.name === 'Pan H Brioche');
     expect(pan).toBeDefined();
     expect(pan?.qty).toBe(2);
     expect(pan?.price).toBeCloseTo(1.1);
   });
 
-  it('parses "1CEBOLLA 2 KG3,903,90" → qty=1, name="CEBOLLA 2 KG", price=3.90', async () => {
+  it('parses "1CEBOLLA 2 KG3,903,90" → qty=1, name="Cebolla 2 Kg", price=3.90', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: PDF_PARSE_V111_TEXT });
-    const cebolla = items.find((i) => i.name === 'CEBOLLA 2 KG');
+    const cebolla = items.find((i) => i.name === 'Cebolla 2 Kg');
     expect(cebolla).toBeDefined();
     expect(cebolla?.qty).toBe(1);
     expect(cebolla?.price).toBeCloseTo(3.9);
   });
 
-  it('parses "1BURGER CERDO2,302,30" → qty=1, name="BURGER CERDO", price=2.30', async () => {
+  it('parses "1BURGER CERDO2,302,30" → qty=1, name="Burger Cerdo", price=2.30', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: PDF_PARSE_V111_TEXT });
-    const burger = items.find((i) => i.name === 'BURGER CERDO');
+    const burger = items.find((i) => i.name === 'Burger Cerdo');
     expect(burger).toBeDefined();
     expect(burger?.qty).toBe(1);
     expect(burger?.price).toBeCloseTo(2.3);
   });
 
-  it('maps "CEBOLLA 2 KG" to category "frescos" in concatenated format', async () => {
+  it('maps "Cebolla 2 Kg" to category "frescos" in concatenated format', async () => {
     const items = await mercadonaParser.parse({ buffer: Buffer.from(''), text: PDF_PARSE_V111_TEXT });
-    const cebolla = items.find((i) => i.name === 'CEBOLLA 2 KG');
+    const cebolla = items.find((i) => i.name === 'Cebolla 2 Kg');
     expect(cebolla?.category).toBe('frescos');
   });
 });

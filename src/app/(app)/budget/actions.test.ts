@@ -943,6 +943,63 @@ describe('createManualTransactionAction', () => {
     const result = await createManualTransactionAction(undefined, fd);
     expect(result.error).toBe('insert failed');
   });
+
+  // ---------------------------------------------------------------------------
+  // FEAT-3 Fase A — tag column on createManualTransactionAction
+  // ---------------------------------------------------------------------------
+
+  it('persists tag when valid tag is provided', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupManualTransactionMock((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '150', description: 'Mercadona', date: '2026-05-04', tag: 'mensual' });
+    const result = await createManualTransactionAction(undefined, fd);
+
+    expect(result.error).toBeUndefined();
+    expect(capturedInsert!.tag).toBe('mensual');
+  });
+
+  it.each(['mensual', 'semanal', 'diaria', 'imprevisto'])('accepts valid tag "%s"', async (tag) => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupManualTransactionMock((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '50', date: '2026-05-04', tag });
+    const result = await createManualTransactionAction(undefined, fd);
+
+    expect(result.error).toBeUndefined();
+    expect(capturedInsert!.tag).toBe(tag);
+  });
+
+  it('rejects invalid tag without inserting', async () => {
+    let insertCalled = false;
+    setupManualTransactionMock(() => {
+      insertCalled = true;
+    });
+
+    const fd = makeFormData({ amount: '50', date: '2026-05-04', tag: 'random-bad-tag' });
+    const result = await createManualTransactionAction(undefined, fd);
+
+    expect(result.error).toBeDefined();
+    expect(result.error).toMatch(/tag/i);
+    expect(insertCalled).toBe(false);
+  });
+
+  it('defaults tag to "diaria" when tag field is absent', async () => {
+    let capturedInsert: Record<string, unknown> | undefined;
+    setupManualTransactionMock((data) => {
+      capturedInsert = data as Record<string, unknown>;
+    });
+
+    const fd = makeFormData({ amount: '50', date: '2026-05-04' });
+    const result = await createManualTransactionAction(undefined, fd);
+
+    expect(result.error).toBeUndefined();
+    expect(capturedInsert!.tag).toBe('diaria');
+  });
 });
 
 // ---------------------------------------------------------------------------

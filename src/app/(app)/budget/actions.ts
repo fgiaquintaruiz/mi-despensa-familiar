@@ -2,9 +2,21 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import type { Budget, BudgetCurrency, BudgetInsert, BudgetSummary, ShoppingTransaction, ShoppingTransactionInsert, TransactionItem } from '@/lib/types';
+import type {
+  Budget,
+  BudgetCurrency,
+  BudgetInsert,
+  BudgetSummary,
+  ShoppingTransaction,
+  ShoppingTransactionInsert,
+  ShoppingTransactionTag,
+  TransactionItem,
+} from '@/lib/types';
+import { SHOPPING_TRANSACTION_TAGS } from '@/lib/types';
 
 const VALID_CURRENCIES: BudgetCurrency[] = ['EUR', 'USD', 'ARS'];
+
+const DEFAULT_TRANSACTION_TAG: ShoppingTransactionTag = 'diaria';
 
 // ---------------------------------------------------------------------------
 // Private helpers
@@ -244,10 +256,21 @@ export async function createManualTransactionAction(
   const amountRaw = formData.get('amount');
   const description = (formData.get('description') as string | null)?.trim() ?? '';
   const dateRaw = (formData.get('date') as string | null)?.trim() ?? '';
+  const tagRaw = (formData.get('tag') as string | null)?.trim() ?? '';
 
   const amount = Number(amountRaw);
 
   if (!amount || amount <= 0) return { error: 'El monto debe ser mayor a 0.' };
+
+  // Defense in depth: validate tag at the action boundary in addition to the DB CHECK.
+  let tag: ShoppingTransactionTag;
+  if (tagRaw === '') {
+    tag = DEFAULT_TRANSACTION_TAG;
+  } else if (SHOPPING_TRANSACTION_TAGS.includes(tagRaw as ShoppingTransactionTag)) {
+    tag = tagRaw as ShoppingTransactionTag;
+  } else {
+    return { error: 'Tag inválido.' };
+  }
 
   const today = new Date().toISOString().split('T')[0];
   const transactionDate = dateRaw && /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? dateRaw : today;
@@ -275,6 +298,7 @@ export async function createManualTransactionAction(
     source: 'manual',
     store_name: description || 'Gasto manual',
     transaction_date: transactionDate,
+    tag,
   };
 
   const { error } = await supabase.from('shopping_transactions').insert(insert);

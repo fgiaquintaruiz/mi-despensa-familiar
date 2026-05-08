@@ -172,6 +172,15 @@ export interface Budget {
   updated_at: string;
 }
 
+export type ShoppingTransactionTag = 'mensual' | 'semanal' | 'diaria' | 'imprevisto';
+
+export const SHOPPING_TRANSACTION_TAGS: ShoppingTransactionTag[] = [
+  'mensual',
+  'semanal',
+  'diaria',
+  'imprevisto',
+];
+
 export interface ShoppingTransaction {
   id: string;
   household_id: string;
@@ -181,6 +190,7 @@ export interface ShoppingTransaction {
   transaction_date: string; // "YYYY-MM-DD"
   source: 'ocr' | 'manual';
   notes: string | null;
+  tag: ShoppingTransactionTag | null;
   created_at: string;
 }
 
@@ -232,6 +242,7 @@ export interface ShoppingTransactionInsert {
   transaction_date?: string;
   source?: 'ocr' | 'manual';
   notes?: string | null;
+  tag?: ShoppingTransactionTag | null;
   created_at?: string;
 }
 

@@ -290,6 +290,7 @@ export type Database = {
           notes: string | null
           source: string
           store_name: string | null
+          tag: string | null
           total_amount: number
           transaction_date: string
         }
@@ -302,6 +303,7 @@ export type Database = {
           notes?: string | null
           source?: string
           store_name?: string | null
+          tag?: string | null
           total_amount: number
           transaction_date?: string
         }
@@ -314,6 +316,7 @@ export type Database = {
           notes?: string | null
           source?: string
           store_name?: string | null
+          tag?: string | null
           total_amount?: number
           transaction_date?: string
         }

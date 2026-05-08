@@ -1,12 +1,26 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { createManualTransactionAction } from '../actions';
+import {
+  SHOPPING_TRANSACTION_TAGS,
+  type ShoppingTransactionTag,
+} from '@/lib/types';
 
 const today = new Date().toISOString().split('T')[0];
 
+const TAG_LABELS: Record<ShoppingTransactionTag, string> = {
+  mensual: 'Mensual',
+  semanal: 'Semanal',
+  diaria: 'Diaria',
+  imprevisto: 'Imprevisto',
+};
+
+const DEFAULT_TAG: ShoppingTransactionTag = 'diaria';
+
 export default function ManualTransactionForm() {
   const [state, action, isPending] = useActionState(createManualTransactionAction, {});
+  const [tag, setTag] = useState<ShoppingTransactionTag>(DEFAULT_TAG);
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -48,6 +62,30 @@ export default function ManualTransactionForm() {
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[var(--color-brand)] focus:outline-none"
             />
           </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-gray-600">Tipo de compra</span>
+          <div role="group" aria-label="Tipo de compra" className="flex flex-wrap gap-2">
+            {SHOPPING_TRANSACTION_TAGS.map((t) => {
+              const selected = tag === t;
+              const className = selected
+                ? 'rounded-lg border border-[var(--color-brand)] bg-[var(--color-brand)] px-3 py-1.5 text-xs font-semibold text-white'
+                : 'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700';
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setTag(t)}
+                  className={className}
+                >
+                  {TAG_LABELS[t]}
+                </button>
+              );
+            })}
+          </div>
+          <input type="hidden" name="tag" value={tag} />
         </div>
 
         <div className="flex items-end gap-2">

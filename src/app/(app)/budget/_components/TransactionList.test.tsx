@@ -22,6 +22,7 @@ const mockTransactions: ShoppingTransaction[] = [
     transaction_date: '2026-05-04',
     source: 'ocr',
     notes: null,
+    tag: null,
     created_at: '2026-05-04T10:00:00Z',
   },
   {
@@ -33,6 +34,7 @@ const mockTransactions: ShoppingTransaction[] = [
     transaction_date: '2026-05-02',
     source: 'ocr',
     notes: null,
+    tag: null,
     created_at: '2026-05-02T15:00:00Z',
   },
 ];

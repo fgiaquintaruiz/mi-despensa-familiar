@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { CATEGORIES, isLowStock } from '@/lib/types';
 import StatsCharts from './_components/StatsCharts';
 import { PageHeader } from '@/app/(app)/_components/PageHeader';
+import StatCard from '@/components/StatCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,18 +104,9 @@ export default async function StatsPage() {
 
       {/* Summary cards */}
       <div className="mb-8 grid grid-cols-3 gap-3">
-        <div className="rounded-xl bg-white p-4 shadow-sm">
-          <p className="text-xs text-gray-500">Total productos</p>
-          <p className="mt-1 text-2xl font-bold">{totalProducts}</p>
-        </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm">
-          <p className="text-xs text-gray-500">Stock bajo</p>
-          <p className="mt-1 text-2xl font-bold text-orange-500">{lowStockCount}</p>
-        </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm">
-          <p className="text-xs text-gray-500">Consumos este mes</p>
-          <p className="mt-1 text-2xl font-bold">{consumptionsThisMonth ?? 0}</p>
-        </div>
+        <StatCard label="Total productos" value={totalProducts} />
+        <StatCard label="Stock bajo" value={lowStockCount} emphasis="orange" />
+        <StatCard label="Consumos este mes" value={consumptionsThisMonth ?? 0} />
       </div>
 
       {/* Charts (client component) */}

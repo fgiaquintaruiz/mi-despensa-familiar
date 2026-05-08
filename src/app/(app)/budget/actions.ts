@@ -370,59 +370,15 @@ export async function softDeleteTransactionAction(
 
   if (!membership) return { error: 'No se encontró el hogar' };
 
-  // TEMP LOGGING — RLS bug diagnosis. Remove with the fix commit.
-  const debugRunId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  console.error(`[softDelete] step1 ${debugRunId} before-getSession`, {
-    transactionId,
-    authUserId: user.id,
-    membershipHouseholdId: membership.household_id,
+  // Soft-delete via SECURITY DEFINER RPC: bypasses the RLS UPDATE-policy bug
+  // where USING + WITH CHECK clauses on shopping_transactions were rejecting
+  // the row transition deleted_at IS NULL → NOT NULL. The RPC validates
+  // household membership internally before performing the UPDATE.
+  const { error: deleteError } = await supabase.rpc('soft_delete_transaction', {
+    t_id: transactionId,
   });
 
-  let sessionUserId: string | undefined;
-  let sessionExpiresAt: number | undefined;
-  let sessionHasAccessToken = false;
-  try {
-    const sessionRes = await supabase.auth.getSession();
-    sessionUserId = sessionRes.data.session?.user?.id;
-    sessionExpiresAt = sessionRes.data.session?.expires_at;
-    sessionHasAccessToken = Boolean(sessionRes.data.session?.access_token);
-    console.error(`[softDelete] step2 ${debugRunId} after-getSession ok`, {
-      sessionUserId,
-      sessionExpiresAt,
-      sessionHasAccessToken,
-    });
-  } catch (err) {
-    console.error(`[softDelete] step2 ${debugRunId} after-getSession THREW`, {
-      message: err instanceof Error ? err.message : 'unknown',
-      stack: err instanceof Error ? err.stack : null,
-    });
-  }
-
-  console.error(`[softDelete] step3 ${debugRunId} pre-update`, {
-    transactionId,
-    membershipHouseholdId: membership.household_id,
-  });
-
-  // Soft-delete: set deleted_at = now(), scoped to household for security
-  const { error: deleteError } = await supabase
-    .from('shopping_transactions')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', transactionId)
-    .eq('household_id', membership.household_id)
-    .is('deleted_at', null);
-
-  if (deleteError) {
-    // TEMP LOGGING — RLS bug diagnosis. Remove with the fix commit.
-    console.error(`[softDelete] step4 ${debugRunId} update-error`, JSON.stringify({
-      code: deleteError.code,
-      message: deleteError.message,
-      details: deleteError.details,
-      hint: deleteError.hint,
-      transactionId,
-      householdId: membership.household_id,
-    }));
-    return { error: deleteError.message };
-  }
+  if (deleteError) return { error: deleteError.message };
 
   // Optionally reverse stock changes
   if (removeStock) {

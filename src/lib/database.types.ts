@@ -389,6 +389,7 @@ export type Database = {
       }
       is_household_member: { Args: { h_id: string }; Returns: boolean }
       is_household_owner: { Args: { h_id: string }; Returns: boolean }
+      soft_delete_transaction: { Args: { t_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

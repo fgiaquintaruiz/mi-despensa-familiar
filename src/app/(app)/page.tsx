@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
+import { isLowStock } from '@/lib/types';
 import type { Product } from '@/lib/types';
 import DashboardStats from './_components/DashboardStats';
 import ProductFilters from './_components/ProductFilters';
@@ -36,9 +37,7 @@ export default async function Home({
   const list: Product[] = products ?? [];
 
   const total = list.length;
-  const lowStock = list.filter(
-    (p) => p.min_stock > 0 && p.current_stock < p.min_stock,
-  ).length;
+  const lowStock = list.filter(isLowStock).length;
   const categories = new Set(list.map((p) => p.category)).size;
 
   return (

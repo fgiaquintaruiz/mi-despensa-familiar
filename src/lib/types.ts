@@ -28,6 +28,10 @@ export function categoryEmoji(key: Category): string {
   return _categoryMap.get(key)!.emoji;
 }
 
+export function isLowStock(product: Pick<Product, 'min_stock' | 'current_stock'>): boolean {
+  return product.min_stock > 0 && product.current_stock < product.min_stock;
+}
+
 // ------------------------------------------------------------
 // Role
 // ------------------------------------------------------------

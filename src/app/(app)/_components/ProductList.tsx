@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { categoryLabel } from '@/lib/types';
+import { categoryLabel, isLowStock } from '@/lib/types';
 import type { Product } from '@/lib/types';
 import DeleteProductButton from './DeleteProductButton';
 import ConsumeButton from './ConsumeButton';
@@ -12,10 +12,6 @@ import { bulkDeleteProductsAction } from '../actions';
 
 interface Props {
   products: Product[];
-}
-
-function isLowStock(product: Product): boolean {
-  return product.min_stock > 0 && product.current_stock < product.min_stock;
 }
 
 function getExpiryStatus(expiresAt: string | null) {

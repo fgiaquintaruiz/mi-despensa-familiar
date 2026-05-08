@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { CATEGORIES } from '@/lib/types';
+import { CATEGORIES, isLowStock } from '@/lib/types';
 import StatsCharts from './_components/StatsCharts';
 import { PageHeader } from '@/app/(app)/_components/PageHeader';
 
@@ -28,8 +28,7 @@ export default async function StatsPage() {
     .eq('household_id', householdId);
 
   const totalProducts = products?.length ?? 0;
-  const lowStockCount =
-    products?.filter((p) => p.min_stock > 0 && p.current_stock < p.min_stock).length ?? 0;
+  const lowStockCount = products?.filter(isLowStock).length ?? 0;
 
   // Consumption this month (type IS NULL = real consumption, not restock)
   const now = new Date();

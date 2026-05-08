@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { CATEGORIES, type Category } from '@/lib/types';
+import { CATEGORIES, isLowStock, type Category } from '@/lib/types';
 
 const VALID_CATEGORIES = new Set<string>(CATEGORIES.map((c) => c.key));
 
@@ -358,7 +358,7 @@ export async function consumeProductAction(productId: string): Promise<{ error?:
 
   // 4. Send low-stock push notification if stock dropped below min_stock
   const newStock = product.current_stock - 1;
-  if (product.min_stock > 0 && newStock < product.min_stock) {
+  if (isLowStock({ ...product, current_stock: newStock })) {
     const unitLabel = product.unit ?? 'unidades';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
     // Fire-and-forget — don't block the action on notification delivery

@@ -51,4 +51,5 @@ supabase/.temp/
 # Playwright
 test-results/
 playwright-report/
-backup_pre_softdelete_*.sql
+# Database backups (local only)
+backup_*.sql

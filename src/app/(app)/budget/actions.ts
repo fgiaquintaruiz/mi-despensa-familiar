@@ -370,6 +370,17 @@ export async function softDeleteTransactionAction(
 
   if (!membership) return { error: 'No se encontró el hogar' };
 
+  // TEMP LOGGING — RLS bug diagnosis. Remove with the fix commit.
+  const sessionRes = await supabase.auth.getSession();
+  console.error('[softDelete] context:', {
+    hasAccessToken: Boolean(sessionRes.data.session?.access_token),
+    sessionUserId: sessionRes.data.session?.user?.id,
+    authUserId: user.id,
+    membershipHouseholdId: membership.household_id,
+    expiresAt: sessionRes.data.session?.expires_at,
+    transactionId,
+  });
+
   // Soft-delete: set deleted_at = now(), scoped to household for security
   const { error: deleteError } = await supabase
     .from('shopping_transactions')
@@ -378,7 +389,18 @@ export async function softDeleteTransactionAction(
     .eq('household_id', membership.household_id)
     .is('deleted_at', null);
 
-  if (deleteError) return { error: deleteError.message };
+  if (deleteError) {
+    // TEMP LOGGING — RLS bug diagnosis. Remove with the fix commit.
+    console.error('[softDelete] error:', JSON.stringify({
+      code: deleteError.code,
+      message: deleteError.message,
+      details: deleteError.details,
+      hint: deleteError.hint,
+      transactionId,
+      householdId: membership.household_id,
+    }));
+    return { error: deleteError.message };
+  }
 
   // Optionally reverse stock changes
   if (removeStock) {

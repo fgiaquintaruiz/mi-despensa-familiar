@@ -371,14 +371,36 @@ export async function softDeleteTransactionAction(
   if (!membership) return { error: 'No se encontró el hogar' };
 
   // TEMP LOGGING — RLS bug diagnosis. Remove with the fix commit.
-  const sessionRes = await supabase.auth.getSession();
-  console.error('[softDelete] context:', {
-    hasAccessToken: Boolean(sessionRes.data.session?.access_token),
-    sessionUserId: sessionRes.data.session?.user?.id,
+  const debugRunId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  console.error(`[softDelete] step1 ${debugRunId} before-getSession`, {
+    transactionId,
     authUserId: user.id,
     membershipHouseholdId: membership.household_id,
-    expiresAt: sessionRes.data.session?.expires_at,
+  });
+
+  let sessionUserId: string | undefined;
+  let sessionExpiresAt: number | undefined;
+  let sessionHasAccessToken = false;
+  try {
+    const sessionRes = await supabase.auth.getSession();
+    sessionUserId = sessionRes.data.session?.user?.id;
+    sessionExpiresAt = sessionRes.data.session?.expires_at;
+    sessionHasAccessToken = Boolean(sessionRes.data.session?.access_token);
+    console.error(`[softDelete] step2 ${debugRunId} after-getSession ok`, {
+      sessionUserId,
+      sessionExpiresAt,
+      sessionHasAccessToken,
+    });
+  } catch (err) {
+    console.error(`[softDelete] step2 ${debugRunId} after-getSession THREW`, {
+      message: err instanceof Error ? err.message : 'unknown',
+      stack: err instanceof Error ? err.stack : null,
+    });
+  }
+
+  console.error(`[softDelete] step3 ${debugRunId} pre-update`, {
     transactionId,
+    membershipHouseholdId: membership.household_id,
   });
 
   // Soft-delete: set deleted_at = now(), scoped to household for security
@@ -391,7 +413,7 @@ export async function softDeleteTransactionAction(
 
   if (deleteError) {
     // TEMP LOGGING — RLS bug diagnosis. Remove with the fix commit.
-    console.error('[softDelete] error:', JSON.stringify({
+    console.error(`[softDelete] step4 ${debugRunId} update-error`, JSON.stringify({
       code: deleteError.code,
       message: deleteError.message,
       details: deleteError.details,

@@ -88,6 +88,27 @@ describe('BudgetWidget', () => {
 });
 
 // ---------------------------------------------------------------------------
+// BUG-5 — showDetailButton prop
+// ---------------------------------------------------------------------------
+
+describe('BudgetWidget — showDetailButton prop (BUG-5)', () => {
+  it('renders "Ver detalle" button by default when showDetailButton is not passed', () => {
+    render(<BudgetWidget summary={makeSummary(50, 200)} />);
+    expect(screen.getByRole('link', { name: /ver detalle/i })).toBeInTheDocument();
+  });
+
+  it('renders "Ver detalle" button when showDetailButton is true', () => {
+    render(<BudgetWidget summary={makeSummary(50, 200)} showDetailButton={true} />);
+    expect(screen.getByRole('link', { name: /ver detalle/i })).toBeInTheDocument();
+  });
+
+  it('does not render "Ver detalle" button when showDetailButton is false', () => {
+    render(<BudgetWidget summary={makeSummary(50, 200)} showDetailButton={false} />);
+    expect(screen.queryByRole('link', { name: /ver detalle/i })).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Cambio 3 — BudgetWidget manual badge
 // ---------------------------------------------------------------------------
 

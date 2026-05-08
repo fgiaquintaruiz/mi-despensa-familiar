@@ -4,6 +4,7 @@ import { formatAmount } from '@/lib/currency';
 
 interface BudgetWidgetProps {
   summary: BudgetSummary | null;
+  showDetailButton?: boolean;
 }
 
 function getBarColor(percentage: number): string {
@@ -12,7 +13,7 @@ function getBarColor(percentage: number): string {
   return 'bg-green-500';
 }
 
-export default function BudgetWidget({ summary }: BudgetWidgetProps) {
+export default function BudgetWidget({ summary, showDetailButton = true }: BudgetWidgetProps) {
   if (!summary) {
     return (
       <div className="rounded-xl border border-[var(--color-brand)]/20 bg-white p-4 shadow-sm">
@@ -74,12 +75,14 @@ export default function BudgetWidget({ summary }: BudgetWidgetProps) {
           </p>
           <p className="text-xs text-gray-500">Te quedan {formatAmount(remaining, currency)}</p>
         </div>
-        <Link
-          href="/budget"
-          className="text-xs font-semibold text-[var(--color-brand)] hover:underline"
-        >
-          Ver detalle
-        </Link>
+        {showDetailButton && (
+          <Link
+            href="/budget"
+            className="text-xs font-semibold text-[var(--color-brand)] hover:underline"
+          >
+            Ver detalle
+          </Link>
+        )}
       </div>
     </div>
   );

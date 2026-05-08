@@ -64,7 +64,7 @@ export default async function BudgetPage() {
 
       {/* Budget Summary Widget */}
       <div className="mb-4">
-        <BudgetWidget summary={summary} />
+        <BudgetWidget summary={summary} showDetailButton={false} />
       </div>
 
       {/* Stats row */}

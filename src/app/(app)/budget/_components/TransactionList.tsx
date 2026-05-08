@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import type { BudgetCurrency, ShoppingTransaction, TransactionItem } from '@/lib/types';
 import { formatAmount } from '@/lib/currency';
 import { getTransactionItemsAction } from '../actions';
+import DeleteTransactionButton from './DeleteTransactionButton';
 
 interface TransactionListProps {
   transactions: ShoppingTransaction[];
@@ -85,6 +86,14 @@ export default function TransactionList({ transactions, currency }: TransactionL
                     ) : (
                       <ItemsDetail items={itemsCache.get(tx.id) ?? []} currency={currency} />
                     )}
+                    <div className="mt-3 flex justify-end">
+                      <DeleteTransactionButton
+                        transactionId={tx.id}
+                        storeName={tx.store_name}
+                        totalAmount={tx.total_amount}
+                        currency={currency}
+                      />
+                    </div>
                   </td>
                 </tr>
               )}

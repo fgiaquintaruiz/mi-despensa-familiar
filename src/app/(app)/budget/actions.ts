@@ -311,3 +311,82 @@ export async function getTransactionItemsAction(
   if (error) return { error: error.message };
   return { data: data ?? [] };
 }
+
+// ---------------------------------------------------------------------------
+// softDeleteTransactionAction
+// ---------------------------------------------------------------------------
+/**
+ * Soft-deletes a shopping_transaction by setting deleted_at = now().
+ * RLS SELECT policy already filters WHERE deleted_at IS NULL, so the
+ * transaction is automatically excluded from budget calculations.
+ *
+ * If removeStock is true, fetches transaction_items and decrements
+ * current_stock on each linked product (floors at 0, never negative).
+ */
+export async function softDeleteTransactionAction(
+  transactionId: string,
+  removeStock: boolean,
+): Promise<{ error?: string }> {
+  if (!transactionId || transactionId.trim() === '') {
+    return { error: 'El id de la transacción es requerido' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: 'No autenticado' };
+
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!membership) return { error: 'No se encontró el hogar' };
+
+  // Soft-delete: set deleted_at = now(), scoped to household for security
+  const { error: deleteError } = await supabase
+    .from('shopping_transactions')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', transactionId)
+    .eq('household_id', membership.household_id)
+    .is('deleted_at', null);
+
+  if (deleteError) return { error: deleteError.message };
+
+  // Optionally reverse stock changes
+  if (removeStock) {
+    const { data: items, error: itemsError } = await supabase
+      .from('transaction_items')
+      .select('id, product_id, quantity')
+      .eq('transaction_id', transactionId);
+
+    if (itemsError) return { error: itemsError.message };
+
+    const itemsToProcess = (items ?? []).filter(
+      (item): item is typeof item & { product_id: string } => item.product_id !== null,
+    );
+
+    for (const item of itemsToProcess) {
+      const { data: product, error: productFetchError } = await supabase
+        .from('products')
+        .select('id, current_stock')
+        .eq('id', item.product_id)
+        .single();
+
+      if (productFetchError || !product) continue;
+
+      const newStock = Math.max(0, (product.current_stock as number) - item.quantity);
+
+      await supabase
+        .from('products')
+        .update({ current_stock: newStock })
+        .eq('id', item.product_id);
+    }
+  }
+
+  revalidatePath('/budget', 'layout');
+  return {};
+}

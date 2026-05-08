@@ -5,6 +5,11 @@ import type { ShoppingTransaction } from '@/lib/types';
 
 vi.mock('../actions', () => ({
   getTransactionItemsAction: vi.fn(),
+  softDeleteTransactionAction: vi.fn(),
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn().mockReturnValue({ refresh: vi.fn() }),
 }));
 
 const mockTransactions: ShoppingTransaction[] = [

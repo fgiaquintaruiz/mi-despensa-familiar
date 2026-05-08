@@ -5,6 +5,7 @@ import {
   createManualTransactionAction,
   getTransactionsForBudgetAction,
   getTransactionItemsAction,
+  softDeleteTransactionAction,
 } from './actions';
 import { createClient } from '@/lib/supabase/server';
 
@@ -31,6 +32,7 @@ function makeQueryBuilder(resolveValue: unknown): any {
     limit: vi.fn().mockReturnThis(),
     single: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
     then: vi.fn((resolve: (v: unknown) => unknown) => Promise.resolve(resolve(resolveValue))),
   };
   return qb;
@@ -1029,5 +1031,302 @@ describe('getBudgetSummaryAction — manual vs auto breakdown (Cambio 3)', () =>
     const result = await getBudgetSummaryAction();
 
     expect(result.data!.currency).toBe('ARS');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FEAT-2 — softDeleteTransactionAction
+// ---------------------------------------------------------------------------
+
+describe('softDeleteTransactionAction', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns error when transactionId is empty', async () => {
+    setupSupabaseMock([]);
+    const result = await softDeleteTransactionAction('', false);
+    expect(result.error).toBeDefined();
+    expect(result.error).toMatch(/id/i);
+  });
+
+  it('returns error when user is not authenticated', async () => {
+    setupNoUserMock();
+    const result = await softDeleteTransactionAction('tx-1', false);
+    expect(result.error).toBe('No autenticado');
+  });
+
+  it('returns error when membership not found', async () => {
+    setupSupabaseMock([
+      { data: null, error: null }, // no membership
+    ]);
+    const result = await softDeleteTransactionAction('tx-1', false);
+    expect(result.error).toBe('No se encontró el hogar');
+  });
+
+  it('soft-deletes transaction by setting deleted_at (update called on shopping_transactions)', async () => {
+    let updateCalled = false;
+    let updateArgs: Record<string, unknown> | undefined;
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          update: vi.fn().mockImplementation((data: unknown) => {
+            if (table === 'shopping_transactions') {
+              updateCalled = true;
+              updateArgs = data as Record<string, unknown>;
+            }
+            return qb;
+          }),
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            return Promise.resolve(resolve({ data: null, error: null }));
+          }),
+        };
+        return qb;
+      }),
+    } as any);
+
+    const result = await softDeleteTransactionAction('tx-1', false);
+    expect(result.error).toBeUndefined();
+    expect(updateCalled).toBe(true);
+    expect(updateArgs).toBeDefined();
+    // deleted_at should be set (not null/undefined)
+    expect(updateArgs!.deleted_at).toBeTruthy();
+  });
+
+  it('calls revalidatePath on success', async () => {
+    const { revalidatePath } = await import('next/cache');
+    setupSupabaseMock([
+      { data: { household_id: 'hh-1' }, error: null }, // membership
+      { data: null, error: null },                        // soft-delete update
+    ]);
+    await softDeleteTransactionAction('tx-1', false);
+    expect(revalidatePath).toHaveBeenCalledWith('/budget', 'layout');
+  });
+
+  it('does NOT query transaction_items when removeStock is false', async () => {
+    const fromCalls: string[] = [];
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        fromCalls.push(table);
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            return Promise.resolve(resolve({ data: null, error: null }));
+          }),
+        };
+        return qb;
+      }),
+    } as any);
+
+    await softDeleteTransactionAction('tx-1', false);
+    expect(fromCalls).not.toContain('transaction_items');
+    expect(fromCalls).not.toContain('products');
+  });
+
+  it('decrements product stock for each item when removeStock is true', async () => {
+    let productUpdateCount = 0;
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          update: vi.fn().mockImplementation(() => {
+            if (table === 'products') {
+              productUpdateCount++;
+            }
+            return qb;
+          }),
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            if (table === 'shopping_transactions') {
+              return Promise.resolve(resolve({ data: null, error: null }));
+            }
+            if (table === 'transaction_items') {
+              return Promise.resolve(resolve({
+                data: [
+                  { id: 'i-1', product_id: 'p-1', product_name: 'Leche', quantity: 2 },
+                  { id: 'i-2', product_id: 'p-2', product_name: 'Pan', quantity: 3 },
+                ],
+                error: null,
+              }));
+            }
+            if (table === 'products') {
+              return Promise.resolve(resolve({ data: { id: 'p-x', current_stock: 10 }, error: null }));
+            }
+            return Promise.resolve(resolve({ data: null, error: null }));
+          }),
+        };
+        return qb;
+      }),
+    } as any);
+
+    const result = await softDeleteTransactionAction('tx-1', true);
+    expect(result.error).toBeUndefined();
+    // Two items with product_id → two product updates
+    expect(productUpdateCount).toBe(2);
+  });
+
+  it('skips items with null product_id when decrementing stock', async () => {
+    let productUpdateCount = 0;
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          update: vi.fn().mockImplementation(() => {
+            if (table === 'products') {
+              productUpdateCount++;
+            }
+            return qb;
+          }),
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            if (table === 'shopping_transactions') {
+              return Promise.resolve(resolve({ data: null, error: null }));
+            }
+            if (table === 'transaction_items') {
+              return Promise.resolve(resolve({
+                data: [
+                  { id: 'i-1', product_id: null, product_name: 'Producto Raro', quantity: 1 },
+                  { id: 'i-2', product_id: 'p-2', product_name: 'Leche', quantity: 2 },
+                ],
+                error: null,
+              }));
+            }
+            if (table === 'products') {
+              return Promise.resolve(resolve({ data: { id: 'p-2', current_stock: 5 }, error: null }));
+            }
+            return Promise.resolve(resolve({ data: null, error: null }));
+          }),
+        };
+        return qb;
+      }),
+    } as any);
+
+    const result = await softDeleteTransactionAction('tx-1', true);
+    expect(result.error).toBeUndefined();
+    // Only 1 product update (null product_id item is skipped)
+    expect(productUpdateCount).toBe(1);
+  });
+
+  it('floors product stock at 0 — never goes negative', async () => {
+    const capturedUpdates: Array<Record<string, unknown>> = [];
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          update: vi.fn().mockImplementation((data: unknown) => {
+            if (table === 'products') {
+              capturedUpdates.push(data as Record<string, unknown>);
+            }
+            return qb;
+          }),
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            if (table === 'shopping_transactions') {
+              return Promise.resolve(resolve({ data: null, error: null }));
+            }
+            if (table === 'transaction_items') {
+              return Promise.resolve(resolve({
+                data: [
+                  { id: 'i-1', product_id: 'p-1', product_name: 'Leche', quantity: 10 },
+                ],
+                error: null,
+              }));
+            }
+            if (table === 'products') {
+              // current_stock is only 3, but item.quantity is 10
+              return Promise.resolve(resolve({ data: { id: 'p-1', current_stock: 3 }, error: null }));
+            }
+            return Promise.resolve(resolve({ data: null, error: null }));
+          }),
+        };
+        return qb;
+      }),
+    } as any);
+
+    const result = await softDeleteTransactionAction('tx-1', true);
+    expect(result.error).toBeUndefined();
+    expect(capturedUpdates).toHaveLength(1);
+    // Math.max(0, 3 - 10) = 0 — floored at 0
+    expect(capturedUpdates[0].current_stock).toBe(0);
+  });
+
+  it('returns error when soft-delete update fails', async () => {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            return Promise.resolve(resolve({ data: null, error: { message: 'update failed' } }));
+          }),
+        };
+        return qb;
+      }),
+    } as any);
+
+    const result = await softDeleteTransactionAction('tx-1', false);
+    expect(result.error).toBe('update failed');
   });
 });

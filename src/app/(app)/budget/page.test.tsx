@@ -8,7 +8,7 @@ vi.mock('./actions', () => ({
   getBudgetSummaryAction: vi.fn(),
 }));
 
-// Server components inside the page (BudgetWidget, TransactionList, ManualTransactionForm)
+// Server components inside the page (BudgetWidget, TransactionList, BudgetFAB)
 // are stubbed out — we only care about the per-tag stat cards on this page.
 vi.mock('../_components/BudgetWidget', () => ({
   default: () => <div data-testid="budget-widget" />,
@@ -16,8 +16,8 @@ vi.mock('../_components/BudgetWidget', () => ({
 vi.mock('./_components/TransactionList', () => ({
   default: () => <div data-testid="transaction-list" />,
 }));
-vi.mock('./_components/ManualTransactionForm', () => ({
-  default: () => <div data-testid="manual-form" />,
+vi.mock('./_components/BudgetFAB', () => ({
+  default: () => <div data-testid="budget-fab" />,
 }));
 
 function tx(partial: Partial<ShoppingTransaction>): ShoppingTransaction {

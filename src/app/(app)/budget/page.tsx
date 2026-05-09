@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { getBudgetSummaryAction } from './actions';
 import BudgetWidget from '../_components/BudgetWidget';
 import TransactionList from './_components/TransactionList';
-import ManualTransactionForm from './_components/ManualTransactionForm';
+import BudgetFAB from './_components/BudgetFAB';
 import StatCard from '@/components/StatCard';
 import { formatAmount } from '@/lib/currency';
 import { computeTagAverages } from './_lib/tag-averages';
@@ -119,13 +119,10 @@ export default async function BudgetPage() {
         </div>
       )}
 
-      {/* Manual transaction form */}
-      <div className="mb-4">
-        <ManualTransactionForm />
-      </div>
-
       {/* Transaction List */}
       <TransactionList transactions={transactions} currency={summary.currency} />
+
+      <BudgetFAB />
     </main>
   );
 }

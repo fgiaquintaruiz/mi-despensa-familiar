@@ -199,6 +199,38 @@ describe('DeleteTransactionButton', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
+  it('shows friendly message and refreshes list when action returns code=transaction_gone', async () => {
+    const { useRouter } = await import('next/navigation');
+    const mockRefresh = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({ refresh: mockRefresh } as unknown as ReturnType<typeof useRouter>);
+
+    const { softDeleteTransactionAction } = await import('../actions');
+    vi.mocked(softDeleteTransactionAction).mockResolvedValue({
+      error: 'Este gasto ya no existe. Refrescá la pantalla.',
+      code: 'transaction_gone',
+    });
+
+    render(
+      <DeleteTransactionButton
+        transactionId="tx-1"
+        storeName="Carrefour"
+        totalAmount={420}
+        currency="EUR"
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+
+    const buttons = screen.getAllByRole('button', { name: /eliminar/i });
+    const confirmBtn = buttons[buttons.length - 1];
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Este gasto ya no existe. Refrescá la pantalla.')).toBeInTheDocument();
+    });
+    // Stale row should be cleared by refreshing the RSC tree
+    expect(mockRefresh).toHaveBeenCalled();
+  });
+
   it('closes dialog when Cancelar is clicked', () => {
     render(
       <DeleteTransactionButton

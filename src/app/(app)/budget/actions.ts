@@ -347,10 +347,12 @@ export async function getTransactionItemsAction(
  * If removeStock is true, fetches transaction_items and decrements
  * current_stock on each linked product (floors at 0, never negative).
  */
+export type SoftDeleteErrorCode = 'transaction_gone';
+
 export async function softDeleteTransactionAction(
   transactionId: string,
   removeStock: boolean,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; code?: SoftDeleteErrorCode }> {
   if (!transactionId || transactionId.trim() === '') {
     return { error: 'El id de la transacción es requerido' };
   }
@@ -378,7 +380,16 @@ export async function softDeleteTransactionAction(
     t_id: transactionId,
   });
 
-  if (deleteError) return { error: deleteError.message };
+  if (deleteError) {
+    // Map known RPC errors to friendly Spanish messages.
+    if (deleteError.message === 'Transaction not found or not authorized') {
+      return {
+        error: 'Este gasto ya no existe. Refrescá la pantalla.',
+        code: 'transaction_gone',
+      };
+    }
+    return { error: deleteError.message };
+  }
 
   // Optionally reverse stock changes
   if (removeStock) {

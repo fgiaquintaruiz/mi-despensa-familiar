@@ -1382,4 +1382,33 @@ describe('softDeleteTransactionAction', () => {
     const result = await softDeleteTransactionAction('tx-1', false);
     expect(result.error).toBe('rpc failed');
   });
+
+  it('maps RPC error "Transaction not found or not authorized" to friendly Spanish message + code', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      error: { message: 'Transaction not found or not authorized' },
+    });
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation(() => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) =>
+            Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null })),
+          ),
+        };
+        return qb;
+      }),
+      rpc,
+    } as any);
+
+    const result = await softDeleteTransactionAction('tx-1', false);
+    expect(result.error).toBe('Este gasto ya no existe. Refrescá la pantalla.');
+    expect(result.code).toBe('transaction_gone');
+  });
 });

@@ -38,6 +38,14 @@ export default function DeleteTransactionButton({
       const result = await softDeleteTransactionAction(transactionId, removeStock);
       if (result.error) {
         setError(result.error);
+        // Stale row: server says the transaction is gone — refresh the RSC
+        // tree so the user sees the updated list even though the dialog
+        // stays open with the friendly message.
+        if (result.code === 'transaction_gone') {
+          startTransition(() => {
+            router.refresh();
+          });
+        }
         return;
       }
       setOpen(false);

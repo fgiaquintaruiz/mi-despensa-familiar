@@ -69,6 +69,17 @@ describe('ManualTransactionModal — mode=create', () => {
   });
 });
 
+describe('ManualTransactionModal — Escape key', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('calls onClose when Escape key is pressed while modal is open', () => {
+    const onClose = vi.fn();
+    render(<ManualTransactionModal {...baseProps} onClose={onClose} />);
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('ManualTransactionModal — mode=edit', () => {
   beforeEach(() => vi.clearAllMocks());
 

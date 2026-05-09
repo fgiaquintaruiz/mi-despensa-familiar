@@ -13,7 +13,7 @@ vi.mock('../actions', () => ({
 describe('DeleteTransactionButton', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('renders delete button', () => {
+  it('renders delete button with Trash2 icon and aria-label', () => {
     render(
       <DeleteTransactionButton
         transactionId="tx-1"
@@ -22,7 +22,12 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    expect(screen.getByRole('button', { name: /eliminar/i })).toBeInTheDocument();
+    const btn = screen.getByRole('button', { name: /eliminar gasto/i });
+    expect(btn).toBeInTheDocument();
+    // Must NOT contain text "Eliminar" — replaced by icon
+    expect(btn).not.toHaveTextContent('Eliminar');
+    // Must have the svg icon inside
+    expect(btn.querySelector('svg')).toBeInTheDocument();
   });
 
   it('opens dialog on click', () => {
@@ -36,7 +41,7 @@ describe('DeleteTransactionButton', () => {
     );
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText(/eliminar este gasto/i)).toBeInTheDocument();
@@ -51,7 +56,7 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
     expect(screen.getByText(/carrefour/i)).toBeInTheDocument();
   });
 
@@ -64,7 +69,7 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
     expect(screen.getByText(/sin tienda/i)).toBeInTheDocument();
   });
 
@@ -77,7 +82,7 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
 
     const checkbox = screen.getByRole('checkbox');
     expect(checkbox).not.toBeChecked();
@@ -92,7 +97,7 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
     expect(screen.getByText(/también quitar los productos del stock/i)).toBeInTheDocument();
   });
 
@@ -108,12 +113,10 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
 
     // Click the confirm "Eliminar" button inside the dialog
-    const buttons = screen.getAllByRole('button', { name: /eliminar/i });
-    const confirmBtn = buttons[buttons.length - 1];
-    fireEvent.click(confirmBtn);
+    fireEvent.click(screen.getByRole('button', { name: /^Eliminar$/ }));
 
     await waitFor(() => {
       expect(softDeleteTransactionAction).toHaveBeenCalledWith('tx-1', false);
@@ -132,14 +135,12 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
 
     const checkbox = screen.getByRole('checkbox');
     fireEvent.click(checkbox);
 
-    const buttons = screen.getAllByRole('button', { name: /eliminar/i });
-    const confirmBtn = buttons[buttons.length - 1];
-    fireEvent.click(confirmBtn);
+    fireEvent.click(screen.getByRole('button', { name: /^Eliminar$/ }));
 
     await waitFor(() => {
       expect(softDeleteTransactionAction).toHaveBeenCalledWith('tx-1', true);
@@ -162,11 +163,8 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
-
-    const buttons = screen.getAllByRole('button', { name: /eliminar/i });
-    const confirmBtn = buttons[buttons.length - 1];
-    fireEvent.click(confirmBtn);
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Eliminar$/ }));
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -186,11 +184,8 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
-
-    const buttons = screen.getAllByRole('button', { name: /eliminar/i });
-    const confirmBtn = buttons[buttons.length - 1];
-    fireEvent.click(confirmBtn);
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Eliminar$/ }));
 
     await waitFor(() => {
       expect(screen.getByText('Algo salió mal')).toBeInTheDocument();
@@ -218,11 +213,8 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
-
-    const buttons = screen.getAllByRole('button', { name: /eliminar/i });
-    const confirmBtn = buttons[buttons.length - 1];
-    fireEvent.click(confirmBtn);
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Eliminar$/ }));
 
     await waitFor(() => {
       expect(screen.getByText('Este gasto ya no existe. Refrescá la pantalla.')).toBeInTheDocument();
@@ -240,7 +232,7 @@ describe('DeleteTransactionButton', () => {
         currency="EUR"
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /eliminar gasto/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));

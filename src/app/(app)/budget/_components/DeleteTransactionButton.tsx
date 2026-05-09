@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Trash2 } from 'lucide-react';
 import { formatAmount } from '@/lib/currency';
 import type { BudgetCurrency } from '@/lib/types';
 import { softDeleteTransactionAction } from '../actions';
@@ -64,10 +65,10 @@ export default function DeleteTransactionButton({
       <button
         type="button"
         onClick={handleOpen}
-        className="text-sm text-red-600 underline hover:text-red-800"
+        className="flex h-11 w-11 items-center justify-center text-red-500 hover:text-red-600"
         aria-label="Eliminar gasto"
       >
-        Eliminar
+        <Trash2 className="h-4 w-4" />
       </button>
 
       {open && (

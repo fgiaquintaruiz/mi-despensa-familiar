@@ -108,16 +108,18 @@ export default async function BudgetPage() {
 
       {/* Per-tag averages */}
       {tagAverages.length > 0 && (
-        <div className="mb-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
-          {tagAverages.map((row) => (
-            <StatCard
-              key={row.tag}
-              label={`${TAG_LABELS[row.tag]} · ${row.count} ticket${row.count === 1 ? '' : 's'}`}
-              value={formatAmount(row.average, summary.currency)}
-              size="sm"
-            />
-          ))}
-        </div>
+        <section className="mb-4">
+          <h3 className="mb-2 text-sm font-semibold text-gray-600">Por tipo de compra</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {tagAverages.map((row) => (
+              <StatCard
+                key={row.tag}
+                label={`${TAG_LABELS[row.tag]} · ${row.count} ticket${row.count === 1 ? '' : 's'}`}
+                value={formatAmount(row.average, summary.currency)}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Transaction List */}

@@ -108,7 +108,7 @@ export default async function BudgetPage() {
 
       {/* Per-tag averages */}
       {tagAverages.length > 0 && (
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
           {tagAverages.map((row) => (
             <StatCard
               key={row.tag}

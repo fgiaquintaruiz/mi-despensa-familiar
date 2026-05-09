@@ -2,6 +2,7 @@ interface Props {
   label: string;
   value: string | number;
   emphasis?: 'orange' | 'red';
+  size?: 'sm' | 'lg';
 }
 
 const emphasisClass: Record<NonNullable<Props['emphasis']>, string> = {
@@ -9,10 +10,11 @@ const emphasisClass: Record<NonNullable<Props['emphasis']>, string> = {
   red: 'text-red-500',
 };
 
-export default function StatCard({ label, value, emphasis }: Props) {
+export default function StatCard({ label, value, emphasis, size = 'lg' }: Props) {
+  const sizeClass = size === 'sm' ? 'text-xl' : 'text-2xl';
   const valueClass = emphasis
-    ? `mt-1 text-2xl font-bold ${emphasisClass[emphasis]}`
-    : 'mt-1 text-2xl font-bold';
+    ? `mt-1 ${sizeClass} font-bold ${emphasisClass[emphasis]}`
+    : `mt-1 ${sizeClass} font-bold`;
 
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm">

@@ -31,4 +31,28 @@ describe('StatCard', () => {
     const value = screen.getByText('1');
     expect(value).toHaveClass('text-red-500');
   });
+
+  it('uses text-2xl for value by default (size prop omitted)', () => {
+    render(<StatCard label="Default size" value={99} />);
+
+    const value = screen.getByText('99');
+    expect(value).toHaveClass('text-2xl');
+    expect(value).not.toHaveClass('text-xl');
+  });
+
+  it('uses text-2xl for value when size="lg"', () => {
+    render(<StatCard label="Large size" value={99} size="lg" />);
+
+    const value = screen.getByText('99');
+    expect(value).toHaveClass('text-2xl');
+    expect(value).not.toHaveClass('text-xl');
+  });
+
+  it('uses text-xl for value when size="sm"', () => {
+    render(<StatCard label="Small size" value={99} size="sm" />);
+
+    const value = screen.getByText('99');
+    expect(value).toHaveClass('text-xl');
+    expect(value).not.toHaveClass('text-2xl');
+  });
 });

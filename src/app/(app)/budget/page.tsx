@@ -96,7 +96,7 @@ export default async function BudgetPage() {
         )}
         <div className="rounded-xl border border-gray-200 bg-white p-3 text-center">
           <p className="text-lg font-bold text-gray-800">
-            {formatAmount(Math.round(Number(maxTransaction?.total_amount ?? 0)), summary.currency)}
+            {formatAmount(Number(maxTransaction?.total_amount ?? 0), summary.currency)}
           </p>
           <p className="text-xs text-gray-500">Compra más cara</p>
         </div>
@@ -113,7 +113,8 @@ export default async function BudgetPage() {
             <StatCard
               key={row.tag}
               label={`${TAG_LABELS[row.tag]} · ${row.count} ticket${row.count === 1 ? '' : 's'}`}
-              value={formatAmount(Math.round(row.average), summary.currency)}
+              value={formatAmount(row.average, summary.currency)}
+              size="sm"
             />
           ))}
         </div>

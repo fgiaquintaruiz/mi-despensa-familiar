@@ -110,6 +110,32 @@ describe('BudgetPage — per-tag stat cards (FEAT-3 Fase A)', () => {
     expect(screen.queryByText(/^mensual$/i)).not.toBeInTheDocument();
   });
 
+  it('displays tag average with decimal precision (no Math.round)', async () => {
+    // 198.85 must NOT be rounded to 199
+    const transactions = [
+      tx({ id: '1', total_amount: 198.85, tag: 'mensual' }),
+    ];
+    vi.mocked(getBudgetSummaryAction).mockResolvedValue({ data: summary(transactions) });
+
+    const { container } = await renderPage();
+
+    // formatAmount(198.85, 'EUR') → "198,85 €" (es-ES locale)
+    // If Math.round were still present we'd see "199" — failing the test.
+    expect(container.textContent).toMatch(/198[,.]85/);
+    expect(container.textContent).not.toMatch(/\b199[,.]00\b/);
+  });
+
+  it('displays max transaction amount with decimal precision (no Math.round)', async () => {
+    const transactions = [
+      tx({ id: '1', total_amount: 198.85, tag: null }),
+    ];
+    vi.mocked(getBudgetSummaryAction).mockResolvedValue({ data: summary(transactions) });
+
+    const { container } = await renderPage();
+
+    expect(container.textContent).toMatch(/198[,.]85/);
+  });
+
   it('renders count in "N tickets" format under each tag', async () => {
     const transactions = [
       tx({ id: '1', total_amount: 100, tag: 'semanal' }),

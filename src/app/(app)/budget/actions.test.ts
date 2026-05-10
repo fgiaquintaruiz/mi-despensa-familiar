@@ -1383,6 +1383,76 @@ describe('softDeleteTransactionAction', () => {
     expect(result.error).toBe('rpc failed');
   });
 
+  // ---------------------------------------------------------------------------
+  // Cache revalidation — stale mobile fix
+  // ---------------------------------------------------------------------------
+
+  it('revalidates /budget, /dashboard and / when removeStock=true', async () => {
+    const { revalidatePath } = await import('next/cache');
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            if (table === 'transaction_items') {
+              return Promise.resolve(resolve({ data: [], error: null }));
+            }
+            return Promise.resolve(resolve({ data: null, error: null }));
+          }),
+        };
+        return qb;
+      }),
+      rpc,
+    } as any);
+
+    await softDeleteTransactionAction('tx-1', true);
+
+    expect(revalidatePath).toHaveBeenCalledWith('/budget', 'layout');
+    expect(revalidatePath).toHaveBeenCalledWith('/dashboard');
+    expect(revalidatePath).toHaveBeenCalledWith('/');
+  });
+
+  it('revalidates only /budget when removeStock=false — regression guard', async () => {
+    const { revalidatePath } = await import('next/cache');
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) =>
+            Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null })),
+          ),
+        };
+        return qb;
+      }),
+      rpc,
+    } as any);
+
+    await softDeleteTransactionAction('tx-1', false);
+
+    expect(revalidatePath).toHaveBeenCalledWith('/budget', 'layout');
+    expect(revalidatePath).toHaveBeenCalledTimes(1);
+  });
+
   it('maps RPC error "Transaction not found or not authorized" to friendly Spanish message + code', async () => {
     const rpc = vi.fn().mockResolvedValue({
       error: { message: 'Transaction not found or not authorized' },

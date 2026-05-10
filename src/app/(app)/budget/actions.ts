@@ -423,5 +423,13 @@ export async function softDeleteTransactionAction(
   }
 
   revalidatePath('/budget', 'layout');
+
+  if (removeStock) {
+    // Revalidate all paths that display stock/product data so PWA caches
+    // are busted on mobile after a soft-delete with stock removal.
+    revalidatePath('/dashboard');
+    revalidatePath('/');
+  }
+
   return {};
 }

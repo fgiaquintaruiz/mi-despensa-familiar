@@ -347,12 +347,12 @@ export async function getTransactionItemsAction(
  * If removeStock is true, fetches transaction_items and decrements
  * current_stock on each linked product (floors at 0, never negative).
  */
-export type SoftDeleteErrorCode = 'transaction_gone';
+export type SoftDeleteErrorCode = 'transaction_gone' | 'product_delete_failed';
 
 export async function softDeleteTransactionAction(
   transactionId: string,
   removeStock: boolean,
-): Promise<{ error?: string; code?: SoftDeleteErrorCode }> {
+): Promise<{ ok?: never; error?: string; code?: SoftDeleteErrorCode } | { ok: false; code: 'product_delete_failed'; error: string }> {
   if (!transactionId || transactionId.trim() === '') {
     return { error: 'El id de la transacción es requerido' };
   }
@@ -391,7 +391,7 @@ export async function softDeleteTransactionAction(
     return { error: deleteError.message };
   }
 
-  // Optionally reverse stock changes
+  // Optionally soft-delete products linked to this transaction's items
   if (removeStock) {
     const { data: items, error: itemsError } = await supabase
       .from('transaction_items')
@@ -405,20 +405,13 @@ export async function softDeleteTransactionAction(
     );
 
     for (const item of itemsToProcess) {
-      const { data: product, error: productFetchError } = await supabase
-        .from('products')
-        .select('id, current_stock')
-        .eq('id', item.product_id)
-        .single();
+      const { error: rpcError } = await supabase.rpc('soft_delete_product', {
+        p_id: item.product_id,
+      });
 
-      if (productFetchError || !product) continue;
-
-      const newStock = Math.max(0, (product.current_stock as number) - item.quantity);
-
-      await supabase
-        .from('products')
-        .update({ current_stock: newStock })
-        .eq('id', item.product_id);
+      if (rpcError) {
+        return { ok: false, code: 'product_delete_failed', error: rpcError.message };
+      }
     }
   }
 
@@ -432,4 +425,29 @@ export async function softDeleteTransactionAction(
   }
 
   return {};
+}
+
+// ---------------------------------------------------------------------------
+// deleteProductAction
+// ---------------------------------------------------------------------------
+/**
+ * Soft-deletes a single product by setting deleted_at = now() via the
+ * SECURITY DEFINER RPC `soft_delete_product`. The RPC validates ownership
+ * internally — no TOCTOU risk from client-side ownership checks.
+ */
+export async function deleteProductAction(
+  productId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc('soft_delete_product', { p_id: productId });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath('/dashboard');
+  revalidatePath('/');
+
+  return { ok: true };
 }

@@ -204,6 +204,7 @@ export type Database = {
           category: string
           created_at: string
           current_stock: number
+          deleted_at: string | null
           expires_at: string | null
           household_id: string
           id: string
@@ -219,6 +220,7 @@ export type Database = {
           category: string
           created_at?: string
           current_stock?: number
+          deleted_at?: string | null
           expires_at?: string | null
           household_id: string
           id?: string
@@ -234,6 +236,7 @@ export type Database = {
           category?: string
           created_at?: string
           current_stock?: number
+          deleted_at?: string | null
           expires_at?: string | null
           household_id?: string
           id?: string
@@ -389,6 +392,7 @@ export type Database = {
       }
       is_household_member: { Args: { h_id: string }; Returns: boolean }
       is_household_owner: { Args: { h_id: string }; Returns: boolean }
+      soft_delete_product: { Args: { p_id: string }; Returns: undefined }
       soft_delete_transaction: { Args: { t_id: string }; Returns: undefined }
     }
     Enums: {

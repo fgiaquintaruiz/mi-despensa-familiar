@@ -6,6 +6,7 @@ import {
   getTransactionsForBudgetAction,
   getTransactionItemsAction,
   softDeleteTransactionAction,
+  deleteProductAction,
 } from './actions';
 import { createClient } from '@/lib/supabase/server';
 
@@ -1206,8 +1207,8 @@ describe('softDeleteTransactionAction', () => {
     expect(fromCalls).not.toContain('products');
   });
 
-  it('decrements product stock for each item when removeStock is true', async () => {
-    let productUpdateCount = 0;
+  it('soft-deletes each linked product via rpc when removeStock is true', async () => {
+    // BUG-1.3: replaces UPDATE current_stock with soft_delete_product RPC
     const rpc = vi.fn().mockResolvedValue({ error: null });
 
     vi.mocked(createClient).mockResolvedValue({
@@ -1217,12 +1218,6 @@ describe('softDeleteTransactionAction', () => {
       from: vi.fn().mockImplementation((table: string) => {
         const qb: any = {
           select: vi.fn().mockReturnThis(),
-          update: vi.fn().mockImplementation(() => {
-            if (table === 'products') {
-              productUpdateCount++;
-            }
-            return qb;
-          }),
           eq: vi.fn().mockReturnThis(),
           single: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockReturnThis(),
@@ -1239,9 +1234,6 @@ describe('softDeleteTransactionAction', () => {
                 error: null,
               }));
             }
-            if (table === 'products') {
-              return Promise.resolve(resolve({ data: { id: 'p-x', current_stock: 10 }, error: null }));
-            }
             return Promise.resolve(resolve({ data: null, error: null }));
           }),
         };
@@ -1252,13 +1244,18 @@ describe('softDeleteTransactionAction', () => {
 
     const result = await softDeleteTransactionAction('tx-1', true);
     expect(result.error).toBeUndefined();
-    // Two items with product_id → two product updates
-    expect(productUpdateCount).toBe(2);
+    // Two items with product_id → two soft_delete_product RPC calls
+    expect(rpc).toHaveBeenCalledWith('soft_delete_product', { p_id: 'p-1' });
+    expect(rpc).toHaveBeenCalledWith('soft_delete_product', { p_id: 'p-2' });
   });
 
-  it('skips items with null product_id when decrementing stock', async () => {
-    let productUpdateCount = 0;
-    const rpc = vi.fn().mockResolvedValue({ error: null });
+  it('skips items with null product_id when soft-deleting products', async () => {
+    // BUG-1.3: items without product_id are filtered out before RPC calls
+    const rpcCalls: Array<[string, unknown]> = [];
+    const rpc = vi.fn().mockImplementation((fnName: string, args: unknown) => {
+      rpcCalls.push([fnName, args]);
+      return Promise.resolve({ error: null });
+    });
 
     vi.mocked(createClient).mockResolvedValue({
       auth: {
@@ -1267,12 +1264,6 @@ describe('softDeleteTransactionAction', () => {
       from: vi.fn().mockImplementation((table: string) => {
         const qb: any = {
           select: vi.fn().mockReturnThis(),
-          update: vi.fn().mockImplementation(() => {
-            if (table === 'products') {
-              productUpdateCount++;
-            }
-            return qb;
-          }),
           eq: vi.fn().mockReturnThis(),
           single: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockReturnThis(),
@@ -1289,9 +1280,6 @@ describe('softDeleteTransactionAction', () => {
                 error: null,
               }));
             }
-            if (table === 'products') {
-              return Promise.resolve(resolve({ data: { id: 'p-2', current_stock: 5 }, error: null }));
-            }
             return Promise.resolve(resolve({ data: null, error: null }));
           }),
         };
@@ -1302,12 +1290,15 @@ describe('softDeleteTransactionAction', () => {
 
     const result = await softDeleteTransactionAction('tx-1', true);
     expect(result.error).toBeUndefined();
-    // Only 1 product update (null product_id item is skipped)
-    expect(productUpdateCount).toBe(1);
+    // Only p-2 gets a soft_delete_product call — null product_id item is skipped
+    const productDeleteCalls = rpcCalls.filter(([fn]) => fn === 'soft_delete_product');
+    expect(productDeleteCalls).toHaveLength(1);
+    expect(productDeleteCalls[0][1]).toEqual({ p_id: 'p-2' });
   });
 
-  it('floors product stock at 0 — never goes negative', async () => {
-    const capturedUpdates: Array<Record<string, unknown>> = [];
+  it('does not perform any product UPDATE when removeStock is true (old stock decrement removed)', async () => {
+    // BUG-1.3 regression guard: the UPDATE current_stock approach is gone
+    const updateCalled = vi.fn();
     const rpc = vi.fn().mockResolvedValue({ error: null });
 
     vi.mocked(createClient).mockResolvedValue({
@@ -1317,10 +1308,8 @@ describe('softDeleteTransactionAction', () => {
       from: vi.fn().mockImplementation((table: string) => {
         const qb: any = {
           select: vi.fn().mockReturnThis(),
-          update: vi.fn().mockImplementation((data: unknown) => {
-            if (table === 'products') {
-              capturedUpdates.push(data as Record<string, unknown>);
-            }
+          update: vi.fn().mockImplementation(() => {
+            updateCalled();
             return qb;
           }),
           eq: vi.fn().mockReturnThis(),
@@ -1332,15 +1321,9 @@ describe('softDeleteTransactionAction', () => {
             }
             if (table === 'transaction_items') {
               return Promise.resolve(resolve({
-                data: [
-                  { id: 'i-1', product_id: 'p-1', product_name: 'Leche', quantity: 10 },
-                ],
+                data: [{ id: 'i-1', product_id: 'p-1', product_name: 'Leche', quantity: 10 }],
                 error: null,
               }));
-            }
-            if (table === 'products') {
-              // current_stock is only 3, but item.quantity is 10
-              return Promise.resolve(resolve({ data: { id: 'p-1', current_stock: 3 }, error: null }));
             }
             return Promise.resolve(resolve({ data: null, error: null }));
           }),
@@ -1352,9 +1335,9 @@ describe('softDeleteTransactionAction', () => {
 
     const result = await softDeleteTransactionAction('tx-1', true);
     expect(result.error).toBeUndefined();
-    expect(capturedUpdates).toHaveLength(1);
-    // Math.max(0, 3 - 10) = 0 — floored at 0
-    expect(capturedUpdates[0].current_stock).toBe(0);
+    // No UPDATE calls on products — soft-delete RPC handles everything in DB
+    expect(updateCalled).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith('soft_delete_product', { p_id: 'p-1' });
   });
 
   it('returns error when rpc(soft_delete_transaction) fails', async () => {
@@ -1480,5 +1463,176 @@ describe('softDeleteTransactionAction', () => {
     const result = await softDeleteTransactionAction('tx-1', false);
     expect(result.error).toBe('Este gasto ya no existe. Refrescá la pantalla.');
     expect(result.code).toBe('transaction_gone');
+  });
+
+  // ---------------------------------------------------------------------------
+  // BUG-1.3 Fase 2 — removeStock rewrite: soft_delete_product RPC
+  // ---------------------------------------------------------------------------
+
+  it('removes stock: calls soft_delete_product rpc for each product when removeStock=true', async () => {
+    const rpc = vi.fn().mockImplementation((fnName: string) => {
+      // Both soft_delete_transaction and soft_delete_product succeed
+      return Promise.resolve({ error: null });
+    });
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            if (table === 'transaction_items') {
+              return Promise.resolve(resolve({
+                data: [
+                  { id: 'i-1', product_id: 'p-1', quantity: 2 },
+                  { id: 'i-2', product_id: 'p-2', quantity: 1 },
+                ],
+                error: null,
+              }));
+            }
+            return Promise.resolve(resolve({ data: null, error: null }));
+          }),
+        };
+        return qb;
+      }),
+      rpc,
+    } as any);
+
+    const result = await softDeleteTransactionAction('tx-1', true);
+    expect(result.error).toBeUndefined();
+    expect(rpc).toHaveBeenCalledWith('soft_delete_product', { p_id: 'p-1' });
+    expect(rpc).toHaveBeenCalledWith('soft_delete_product', { p_id: 'p-2' });
+  });
+
+  it('removes stock: aborts and returns error if any rpc call fails', async () => {
+    let rpcCallCount = 0;
+    const rpc = vi.fn().mockImplementation((fnName: string, args: { p_id?: string; t_id?: string }) => {
+      if (fnName === 'soft_delete_transaction') return Promise.resolve({ error: null });
+      // soft_delete_product: first succeeds, second fails, third should NOT be called
+      rpcCallCount++;
+      if (rpcCallCount === 1) return Promise.resolve({ error: null });
+      if (rpcCallCount === 2) return Promise.resolve({ error: { message: 'product delete failed' } });
+      return Promise.resolve({ error: null }); // third — should never reach here
+    });
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            if (table === 'transaction_items') {
+              return Promise.resolve(resolve({
+                data: [
+                  { id: 'i-1', product_id: 'p-1', quantity: 2 },
+                  { id: 'i-2', product_id: 'p-2', quantity: 1 },
+                  { id: 'i-3', product_id: 'p-3', quantity: 3 },
+                ],
+                error: null,
+              }));
+            }
+            return Promise.resolve(resolve({ data: null, error: null }));
+          }),
+        };
+        return qb;
+      }),
+      rpc,
+    } as any);
+
+    const result = await softDeleteTransactionAction('tx-1', true);
+    expect(result.ok).toBe(false);
+    expect((result as any).code).toBe('product_delete_failed');
+    expect(result.error).toBe('product delete failed');
+    // Third item (p-3) must NOT have been processed
+    expect(rpcCallCount).toBe(2);
+  });
+
+  it('removes stock: does not call soft_delete_product when removeStock=false', async () => {
+    const rpcCalls: string[] = [];
+    const rpc = vi.fn().mockImplementation((fnName: string) => {
+      rpcCalls.push(fnName);
+      return Promise.resolve({ error: null });
+    });
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) =>
+            Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null })),
+          ),
+        };
+        return qb;
+      }),
+      rpc,
+    } as any);
+
+    await softDeleteTransactionAction('tx-1', false);
+    expect(rpcCalls).not.toContain('soft_delete_product');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BUG-1.3 Fase 2 — deleteProductAction
+// ---------------------------------------------------------------------------
+
+describe('deleteProductAction', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns ok:true and revalidates paths on success', async () => {
+    const { revalidatePath } = await import('next/cache');
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn(),
+      rpc,
+    } as any);
+
+    const result = await deleteProductAction('p-123');
+    expect(result.ok).toBe(true);
+    expect(rpc).toHaveBeenCalledWith('soft_delete_product', { p_id: 'p-123' });
+    expect(revalidatePath).toHaveBeenCalledWith('/dashboard');
+    expect(revalidatePath).toHaveBeenCalledWith('/');
+  });
+
+  it('returns ok:false with error message on rpc failure', async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: { message: 'rpc delete error' } });
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn(),
+      rpc,
+    } as any);
+
+    const result = await deleteProductAction('p-456');
+    expect(result.ok).toBe(false);
+    expect((result as any).error).toBe('rpc delete error');
   });
 });

@@ -3,8 +3,11 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import ManualTransactionModal from './ManualTransactionModal';
 import type { ShoppingTransaction } from '@/lib/types';
 
+import * as actions from '../actions';
+
 vi.mock('../actions', () => ({
   createManualTransactionAction: vi.fn().mockResolvedValue({}),
+  updateManualTransactionAction: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 vi.mock('react', async (importOriginal) => {
@@ -126,5 +129,27 @@ describe('ManualTransactionModal — mode=edit', () => {
     );
     const dateInput = document.querySelector('input[name="date"]') as HTMLInputElement;
     expect(dateInput.value).toBe('2026-05-01');
+  });
+
+  it('calls updateManualTransactionAction on submit in edit mode', async () => {
+    const updateSpy = vi.spyOn(actions, 'updateManualTransactionAction');
+    render(
+      <ManualTransactionModal {...baseProps} mode="edit" transaction={transaction} />,
+    );
+    const form = document.querySelector('form') as HTMLFormElement;
+    fireEvent.submit(form);
+    expect(updateSpy).toHaveBeenCalledWith('tx-1', expect.objectContaining({
+      store: 'Mercadona',
+      date: '2026-05-01',
+      total: 45.5,
+      tag: 'semanal',
+    }));
+  });
+
+  it('shows "Editar gasto manual" as dialog title in edit mode', () => {
+    render(
+      <ManualTransactionModal {...baseProps} mode="edit" transaction={transaction} />,
+    );
+    expect(screen.getByText(/editar gasto manual/i)).toBeInTheDocument();
   });
 });

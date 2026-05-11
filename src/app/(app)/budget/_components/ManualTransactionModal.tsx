@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { createManualTransactionAction } from '../actions';
+import { createManualTransactionAction, updateManualTransactionAction } from '../actions';
 import {
   SHOPPING_TRANSACTION_TAGS,
   type ShoppingTransaction,
@@ -40,8 +40,10 @@ export default function ManualTransactionModal({
   const initialTag: ShoppingTransactionTag =
     mode === 'edit' && transaction?.tag ? transaction.tag : DEFAULT_TAG;
 
-  const [state, action, isPending] = useActionState(createManualTransactionAction, {});
+  const [createState, createAction, isCreatePending] = useActionState(createManualTransactionAction, {});
   const [tag, setTag] = useState<ShoppingTransactionTag>(initialTag);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isEditPending, setIsEditPending] = useState(false);
 
   const defaultAmount = mode === 'edit' && transaction ? String(transaction.total_amount) : '';
   const defaultDescription =
@@ -52,6 +54,38 @@ export default function ManualTransactionModal({
       : today;
 
   const title = mode === 'edit' ? 'Editar gasto manual' : 'Registrar gasto manual';
+  const isPending = mode === 'edit' ? isEditPending : isCreatePending;
+  const errorMessage = mode === 'edit' ? editError : createState.error;
+
+  async function handleEditSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!transaction) return;
+
+    const formData = new FormData(e.currentTarget);
+    const store = (formData.get('description') as string) || null;
+    const date = formData.get('date') as string;
+    const total = parseFloat(formData.get('amount') as string);
+    const tagValue = formData.get('tag') as ShoppingTransactionTag;
+
+    setIsEditPending(true);
+    setEditError(null);
+
+    const result = await updateManualTransactionAction(transaction.id, {
+      store,
+      date,
+      total,
+      tag: tagValue,
+    });
+
+    setIsEditPending(false);
+
+    if (!result.ok) {
+      setEditError(result.error);
+      return;
+    }
+
+    onClose();
+  }
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
@@ -60,16 +94,20 @@ export default function ManualTransactionModal({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
-        {state.error && (
+        {errorMessage && (
           <div
             role="alert"
             className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
           >
-            {state.error}
+            {errorMessage}
           </div>
         )}
 
-        <form action={action} className="flex flex-col gap-2">
+        <form
+          action={mode === 'create' ? createAction : undefined}
+          onSubmit={mode === 'edit' ? handleEditSubmit : undefined}
+          className="flex flex-col gap-2"
+        >
           <div className="flex gap-2">
             <div className="flex w-28 shrink-0 flex-col gap-1">
               <label htmlFor="modal-amount" className="text-xs font-medium text-gray-600">
@@ -146,7 +184,9 @@ export default function ManualTransactionModal({
               disabled={isPending}
               className="rounded-lg bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {isPending ? 'Registrando...' : 'Registrar'}
+              {isPending
+                ? mode === 'edit' ? 'Guardando...' : 'Registrando...'
+                : mode === 'edit' ? 'Guardar' : 'Registrar'}
             </button>
           </div>
         </form>

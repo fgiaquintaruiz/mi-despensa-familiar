@@ -9,9 +9,10 @@ import DeleteTransactionButton from './DeleteTransactionButton';
 interface TransactionListProps {
   transactions: ShoppingTransaction[];
   currency: BudgetCurrency;
+  onEditTransaction?: (tx: ShoppingTransaction) => void;
 }
 
-export default function TransactionList({ transactions, currency }: TransactionListProps) {
+export default function TransactionList({ transactions, currency, onEditTransaction }: TransactionListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [itemsCache, setItemsCache] = useState<Map<string, TransactionItem[]>>(new Map());
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -86,7 +87,31 @@ export default function TransactionList({ transactions, currency }: TransactionL
                     ) : (
                       <ItemsDetail items={itemsCache.get(tx.id) ?? []} currency={currency} />
                     )}
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-3 flex justify-end gap-2">
+                      {tx.source === 'manual' && onEditTransaction && (
+                        <button
+                          type="button"
+                          aria-label="Editar gasto"
+                          onClick={(e) => { e.stopPropagation(); onEditTransaction(tx); }}
+                          className="flex h-11 w-11 items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                      )}
                       <DeleteTransactionButton
                         transactionId={tx.id}
                         storeName={tx.store_name}

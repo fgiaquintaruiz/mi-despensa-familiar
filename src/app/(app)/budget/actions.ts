@@ -428,6 +428,95 @@ export async function softDeleteTransactionAction(
 }
 
 // ---------------------------------------------------------------------------
+// updateManualTransactionAction
+// ---------------------------------------------------------------------------
+
+export type UpdateTransactionErrorCode =
+  | 'transaction_not_found'
+  | 'transaction_not_editable'
+  | 'validation_failed'
+  | 'update_failed';
+
+/**
+ * Updates a manual shopping_transaction.
+ * Only transactions with source='manual' are editable.
+ * Verifies household membership (defense in depth) before updating.
+ */
+export async function updateManualTransactionAction(
+  transactionId: string,
+  data: {
+    store: string | null;
+    date: string;
+    total: number;
+    tag: string;
+  },
+): Promise<{ ok: true } | { ok: false; code: UpdateTransactionErrorCode; error: string }> {
+  // --- Validation (before any DB call) ---
+  if (!data.date || !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
+    return { ok: false, code: 'validation_failed', error: 'La fecha es inválida.' };
+  }
+  if (!data.total || data.total <= 0) {
+    return { ok: false, code: 'validation_failed', error: 'El monto debe ser mayor a 0.' };
+  }
+  if (!data.tag || data.tag.trim() === '') {
+    return { ok: false, code: 'validation_failed', error: 'El tag es requerido.' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { ok: false, code: 'update_failed', error: 'No autenticado' };
+
+  // Defense in depth: verify household membership before touching any row.
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('household_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!membership) return { ok: false, code: 'update_failed', error: 'No se encontró el hogar' };
+
+  // Fetch the transaction — ownership is verified via household_id match.
+  const { data: transaction } = await supabase
+    .from('shopping_transactions')
+    .select('id, household_id, source')
+    .eq('id', transactionId)
+    .eq('household_id', membership.household_id)
+    .maybeSingle();
+
+  if (!transaction) {
+    return { ok: false, code: 'transaction_not_found', error: 'La transacción no existe.' };
+  }
+
+  if (transaction.source !== 'manual') {
+    return {
+      ok: false,
+      code: 'transaction_not_editable',
+      error: 'Solo se pueden editar gastos manuales.',
+    };
+  }
+
+  const { error: updateError } = await supabase
+    .from('shopping_transactions')
+    .update({
+      store_name: data.store,
+      transaction_date: data.date,
+      total_amount: data.total,
+      tag: data.tag,
+    })
+    .eq('id', transactionId);
+
+  if (updateError) {
+    return { ok: false, code: 'update_failed', error: updateError.message };
+  }
+
+  revalidatePath('/budget');
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // deleteProductAction
 // ---------------------------------------------------------------------------
 /**

@@ -7,6 +7,7 @@ import {
   getTransactionItemsAction,
   softDeleteTransactionAction,
   deleteProductAction,
+  updateManualTransactionAction,
 } from './actions';
 import { createClient } from '@/lib/supabase/server';
 
@@ -1634,5 +1635,110 @@ describe('deleteProductAction', () => {
     const result = await deleteProductAction('p-456');
     expect(result.ok).toBe(false);
     expect((result as any).error).toBe('rpc delete error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FEAT-4 4d — updateManualTransactionAction
+// ---------------------------------------------------------------------------
+
+describe('updateManualTransactionAction', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const validData = {
+    store: 'Mercadona',
+    date: '2026-05-10',
+    total: 99.99,
+    tag: 'diaria',
+  };
+
+  function setupUpdateMock({
+    transactionRow = { id: 'tx-1', household_id: 'hh-1', source: 'manual' } as Record<string, unknown> | null,
+    updateError = null as { message: string } | null,
+  } = {}) {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (v: unknown) => unknown) => {
+            if (table === 'household_members') {
+              return Promise.resolve(resolve({ data: { household_id: 'hh-1' }, error: null }));
+            }
+            if (table === 'shopping_transactions') {
+              // First call: fetch (select/maybeSingle) → transactionRow
+              // Second call: update → updateError
+              if (qb._updateCalled) {
+                return Promise.resolve(resolve({ data: null, error: updateError }));
+              }
+              return Promise.resolve(resolve({ data: transactionRow, error: null }));
+            }
+            return Promise.resolve(resolve({ data: null, error: null }));
+          }),
+        };
+        // Track whether update() was chained
+        const originalUpdate = qb.update.bind(qb);
+        qb.update = vi.fn().mockImplementation((...args: unknown[]) => {
+          qb._updateCalled = true;
+          return originalUpdate(...args);
+        });
+        return qb;
+      }),
+    } as any);
+  }
+
+  it('returns ok:true on successful update', async () => {
+    setupUpdateMock();
+    const result = await updateManualTransactionAction('tx-1', validData);
+    expect(result.ok).toBe(true);
+  });
+
+  it('returns transaction_not_editable if source is not manual', async () => {
+    setupUpdateMock({ transactionRow: { id: 'tx-1', household_id: 'hh-1', source: 'ocr' } });
+    const result = await updateManualTransactionAction('tx-1', validData);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('transaction_not_editable');
+    }
+  });
+
+  it('returns transaction_not_found if transaction does not exist', async () => {
+    setupUpdateMock({ transactionRow: null });
+    const result = await updateManualTransactionAction('tx-1', validData);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('transaction_not_found');
+    }
+  });
+
+  it('returns validation_failed if total <= 0', async () => {
+    setupUpdateMock();
+    const result = await updateManualTransactionAction('tx-1', { ...validData, total: 0 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('validation_failed');
+    }
+  });
+
+  it('returns validation_failed if date is empty', async () => {
+    setupUpdateMock();
+    const result = await updateManualTransactionAction('tx-1', { ...validData, date: '' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('validation_failed');
+    }
+  });
+
+  it('calls revalidatePath on success', async () => {
+    const { revalidatePath } = await import('next/cache');
+    setupUpdateMock();
+    await updateManualTransactionAction('tx-1', validData);
+    expect(revalidatePath).toHaveBeenCalledWith('/budget');
   });
 });

@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getBudgetSummaryAction } from './actions';
 import BudgetWidget from '../_components/BudgetWidget';
-import TransactionList from './_components/TransactionList';
-import BudgetFAB from './_components/BudgetFAB';
+import BudgetClientWrapper from './_components/BudgetClientWrapper';
 import StatCard from '@/components/StatCard';
 import { formatAmount } from '@/lib/currency';
 import { computeTagAverages } from './_lib/tag-averages';
@@ -122,10 +121,8 @@ export default async function BudgetPage() {
         </section>
       )}
 
-      {/* Transaction List */}
-      <TransactionList transactions={transactions} currency={summary.currency} />
-
-      <BudgetFAB />
+      {/* Transaction List + FAB + Edit Modal — client wrapper owns interactive state */}
+      <BudgetClientWrapper transactions={transactions} currency={summary.currency} />
     </main>
   );
 }
